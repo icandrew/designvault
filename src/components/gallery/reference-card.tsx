@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCanEdit } from "@/components/app/access";
 import { AddToCollectionDialog } from "@/components/reference/add-to-collection-dialog";
 import { DeleteReferenceDialog } from "@/components/reference/delete-reference-dialog";
 import { FavoriteButton } from "@/components/reference/favorite-button";
@@ -41,6 +42,7 @@ export function ReferenceCard({
   onRemoved?: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const canEdit = useCanEdit();
   const [preview, setPreview] = useState(false);
   const [collect, setCollect] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -110,7 +112,7 @@ export function ReferenceCard({
           >
             <Eye className="size-4" />
           </button>
-          <FavoriteButton id={r.id} initial={r.isFavorite} />
+          {canEdit && <FavoriteButton id={r.id} initial={r.isFavorite} />}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
@@ -122,14 +124,18 @@ export function ReferenceCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link href={`/references/${r.id}/edit`}>
-                  <Pencil /> Edit
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setCollect(true)}>
-                <FolderPlus /> Add to collection
-              </DropdownMenuItem>
+              {canEdit && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={`/references/${r.id}/edit`}>
+                      <Pencil /> Edit
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setCollect(true)}>
+                    <FolderPlus /> Add to collection
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem
                 onSelect={async () => {
                   await navigator.clipboard.writeText(r.id);
@@ -138,10 +144,14 @@ export function ReferenceCard({
               >
                 <Copy /> Copy reference ID
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                <Trash2 /> Delete
-              </DropdownMenuItem>
+              {canEdit && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                    <Trash2 /> Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

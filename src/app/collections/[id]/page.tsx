@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, ImagePlus } from "lucide-react";
+import { OwnerOnly } from "@/components/app/access";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { CollectionHeaderActions, CollectionItems } from "@/components/collections/collection-manager";
 import { EmptyState } from "@/components/gallery/empty-state";
@@ -27,7 +28,11 @@ export default async function CollectionPage({ params }: PageProps<"/collections
         title={collection.name}
         count={collection.referenceCount}
         description={collection.description ?? (collection.kind === "moodboard" ? "Project moodboard" : undefined)}
-        actions={<CollectionHeaderActions collection={collection} />}
+        actions={
+          <OwnerOnly>
+            <CollectionHeaderActions collection={collection} />
+          </OwnerOnly>
+        }
       />
       {collection.kind === "moodboard" && collection.brief && (
         <section className="mb-8 max-w-3xl rounded-xl border bg-card p-5" aria-labelledby="brief-title">
@@ -44,7 +49,7 @@ export default async function CollectionPage({ params }: PageProps<"/collections
         <EmptyState
           icon={ImagePlus}
           title="This collection is empty"
-          description="Add references from your vault with the button above, or use “Add to collection” on any reference."
+          description="No references have been added to this collection yet."
         />
       ) : (
         <CollectionItems collection={collection} />

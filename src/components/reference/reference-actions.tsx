@@ -16,6 +16,7 @@ import { referenceSummaryText } from "@/lib/summary";
 import type { ReferenceDetail } from "@/lib/types";
 import { AddToCollectionDialog } from "./add-to-collection-dialog";
 import { DeleteReferenceDialog } from "./delete-reference-dialog";
+import { useCanEdit } from "@/components/app/access";
 import { FavoriteButton } from "./favorite-button";
 
 async function copy(text: string, message: string) {
@@ -31,18 +32,23 @@ export function ReferenceActions({ reference: r }: { reference: ReferenceDetail 
   const [collect, setCollect] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cover = r.images[0];
+  const canEdit = useCanEdit();
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <FavoriteButton id={r.id} initial={r.isFavorite} variant="plain" />
-      <Button variant="outline" onClick={() => setCollect(true)} className="h-9">
-        <FolderPlus /> Collect
-      </Button>
-      <Button variant="outline" asChild className="h-9">
-        <Link href={`/references/${r.id}/edit`}>
-          <Pencil /> Edit
-        </Link>
-      </Button>
+      {canEdit && (
+        <>
+          <FavoriteButton id={r.id} initial={r.isFavorite} variant="plain" />
+          <Button variant="outline" onClick={() => setCollect(true)} className="h-9">
+            <FolderPlus /> Collect
+          </Button>
+          <Button variant="outline" asChild className="h-9">
+            <Link href={`/references/${r.id}/edit`}>
+              <Pencil /> Edit
+            </Link>
+          </Button>
+        </>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="icon" className="size-9" aria-label="More actions">
@@ -69,10 +75,14 @@ export function ReferenceActions({ reference: r }: { reference: ReferenceDetail 
               </a>
             </DropdownMenuItem>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-            <Trash2 /> Delete reference
-          </DropdownMenuItem>
+          {canEdit && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                <Trash2 /> Delete reference
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {collect && <AddToCollectionDialog referenceId={r.id} title={r.title} open={collect} onOpenChange={setCollect} />}

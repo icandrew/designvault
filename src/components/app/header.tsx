@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Suspense, useState } from "react";
-import { Menu, Plus, Search, X } from "lucide-react";
+import { LogIn, Menu, Plus, Search, X } from "lucide-react";
+import { useCanEdit } from "./access";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { LogoMark } from "./logo";
@@ -11,6 +12,7 @@ import { NavList, type NavData } from "./sidebar";
 import { ThemeMenu } from "./theme-menu";
 
 export function Header(props: NavData) {
+  const canEdit = useCanEdit();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -48,13 +50,23 @@ export function Header(props: NavData) {
             {searchOpen ? <X className="size-[18px]" /> : <Search className="size-[18px]" />}
           </Button>
           <ThemeMenu />
-          <Button asChild className="h-9 gap-1.5 px-3 sm:px-3.5">
-            <Link href="/references/new">
-              <Plus className="size-4" />
-              <span className="hidden min-[400px]:inline">Add reference</span>
-              <span className="sr-only min-[400px]:hidden">Add reference</span>
-            </Link>
-          </Button>
+          {canEdit ? (
+            <Button asChild className="h-9 gap-1.5 px-3 sm:px-3.5">
+              <Link href="/references/new">
+                <Plus className="size-4" />
+                <span className="hidden min-[400px]:inline">Add reference</span>
+                <span className="sr-only min-[400px]:hidden">Add reference</span>
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild variant="outline" className="h-9 gap-1.5 px-3">
+              <Link href="/login">
+                <LogIn className="size-4" />
+                <span className="hidden min-[400px]:inline">Sign in</span>
+                <span className="sr-only min-[400px]:hidden">Sign in</span>
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
       {searchOpen && (

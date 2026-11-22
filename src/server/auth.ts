@@ -18,13 +18,17 @@ export interface AuthSettings {
   password: string | null;
   sessionSecret: string | null;
   onVercel: boolean;
+  /** Signed-out visitors may view (never change) the vault. Requires a password. */
+  publicView?: boolean;
 }
 
 export function authSettings(): AuthSettings {
+  const password = process.env.DESIGN_VAULT_PASSWORD?.trim() || null;
   return {
-    password: process.env.DESIGN_VAULT_PASSWORD?.trim() || null,
+    password,
     sessionSecret: process.env.DESIGN_VAULT_SESSION_SECRET?.trim() || null,
     onVercel: Boolean(process.env.VERCEL),
+    publicView: Boolean(password) && /^(1|true|yes|on)$/i.test(process.env.DESIGN_VAULT_PUBLIC_VIEW?.trim() ?? ""),
   };
 }
 

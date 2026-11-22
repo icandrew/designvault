@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { Heart, ImagePlus, SearchX, Sparkles } from "lucide-react";
+import { OwnerOnly } from "@/components/app/access";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { countActiveFilters, parseFilters, type Filters } from "@/lib/domain";
@@ -51,12 +52,14 @@ export async function GalleryPage({
             </>
           }
         >
-          <Button asChild>
-            <Link href="/references/new">
-              <ImagePlus /> Add your first reference
-            </Link>
-          </Button>
-          <LoadSampleButton />
+          <OwnerOnly>
+            <Button asChild>
+              <Link href="/references/new">
+                <ImagePlus /> Add your first reference
+              </Link>
+            </Button>
+            <LoadSampleButton />
+          </OwnerOnly>
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-6">

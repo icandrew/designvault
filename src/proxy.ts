@@ -10,15 +10,41 @@ import { authSettings, SESSION_COOKIE, verifySessionToken } from "@/server/auth"
  * - With a password: pages redirect to /login and app endpoints return 401
  *   unless the signed session cookie is valid. Agent REST endpoints may
  *   instead present the API key (checked by the route itself).
+ * - With `DESIGN_VAULT_PUBLIC_VIEW=true` as well: signed-out visitors may
+ *   *view* the gallery, explore, collections and reference pages (GET only).
+ *   Everything that changes data, settings (incl. the API key) and the
+ *   add/edit pages still require signing in.
  */
 const PUBLIC_PATHS = new Set(["/login", "/api/auth/login"]);
 const AGENT_PREFIXES = ["/api/references", "/api/collections", "/api/taxonomy", "/api/search", "/api/images"];
 const BARE_HEADER = "x-dv-bare";
+const VIEWER_HEADER = "x-dv-viewer";
 
-function forward(req: NextRequest, bare = false) {
+/** Read-only routes open to signed-out visitors of a public vault. */
+const VISITOR_ROUTES = [
+  /^\/$/,
+  /^\/explore$/,
+  /^\/collections$/,
+  /^\/collections\/col_[A-Za-z0-9]+$/,
+  /^\/recent$/,
+  /^\/favorites$/,
+  /^\/references\/ref_[A-Za-z0-9]+$/,
+  /^\/api\/images\/img_[A-Za-z0-9]+\/(thumb|preview|original)$/,
+  // The gallery's "Load more" (read-only list; writes to this path are POST and stay blocked).
+  /^\/api\/app\/references$/,
+];
+
+function isVisitorRoute(method: string, path: string) {
+  return (method === "GET" || method === "HEAD") && VISITOR_ROUTES.some((r) => r.test(path));
+}
+
+function forward(req: NextRequest, opts: { bare?: boolean; viewer?: boolean } = {}) {
   const headers = new Headers(req.headers);
-  headers.delete(BARE_HEADER); // never trust a client-supplied value
-  if (bare) headers.set(BARE_HEADER, "1");
+  // Never trust client-supplied values for these.
+  headers.delete(BARE_HEADER);
+  headers.delete(VIEWER_HEADER);
+  if (opts.bare) headers.set(BARE_HEADER, "1");
+  if (opts.viewer) headers.set(VIEWER_HEADER, "1");
   return NextResponse.next({ request: { headers } });
 }
 
@@ -26,6 +52,10 @@ const SETUP_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><
 <style>body{font-family:system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:0 20px;line-height:1.55;color:#222}code{background:#f1f1ef;padding:2px 6px;border-radius:4px}</style></head>
 <body><h1>One more step</h1><p>This Design Vault is deployed but has no login password yet, so it is locked to protect your references.</p>
 <p>In Vercel, open your project → <b>Settings → Environment Variables</b>, add <code>DESIGN_VAULT_PASSWORD</code> with a strong password, then redeploy.</p></body></html>`;
+
+const VISITOR_UNAVAILABLE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Design Vault</title>
+<style>body{font-family:system-ui,sans-serif;max-width:520px;margin:15vh auto;padding:0 20px;line-height:1.55;color:#222}</style></head>
+<body><h1>Coming soon</h1><p>This design library isn't available yet. Please check back later.</p><p><a href="/login">Owner sign in</a></p></body></html>`;
 
 const has = (...names: string[]) => names.some((n) => Boolean(process.env[n]?.trim()));
 
@@ -60,10 +90,10 @@ export function proxy(req: NextRequest) {
     if (s.onVercel) {
       return new NextResponse(SETUP_HTML, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     }
-    return forward(req, path === "/login");
+    return forward(req, { bare: path === "/login" });
   }
 
-  if (PUBLIC_PATHS.has(path)) return forward(req, path === "/login");
+  if (PUBLIC_PATHS.has(path)) return forward(req, { bare: path === "/login" });
 
   const isAgentPath = AGENT_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
   if (isAgentPath && (req.headers.has("authorization") || req.headers.has("x-api-key"))) return forward(req);
@@ -78,6 +108,15 @@ export function proxy(req: NextRequest) {
       return new NextResponse(storageSetupHtml(missing), { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     }
     return forward(req);
+  }
+
+  // Public view: signed-out visitors may browse, never change anything.
+  if (s.publicView && isVisitorRoute(req.method, path)) {
+    const missing = s.onVercel ? missingHostedSettings() : [];
+    if (missing.length) {
+      return new NextResponse(VISITOR_UNAVAILABLE_HTML, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+    }
+    return forward(req, { viewer: true });
   }
 
   if (path.startsWith("/api/")) {

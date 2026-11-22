@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCanEdit } from "@/components/app/access";
 import { ScreenshotImage } from "@/components/reference/screenshot-image";
 import { api } from "@/lib/api-client";
 import type { CollectionDetail, Page, ReferenceSummary } from "@/lib/types";
@@ -200,6 +201,7 @@ export function CollectionItems({ collection }: { collection: CollectionDetail }
     setItems(collection.items);
   }
   const isMoodboard = collection.kind === "moodboard";
+  const canEdit = useCanEdit();
 
   const persistOrder = async (next: typeof items) => {
     setItems(next);
@@ -259,6 +261,7 @@ export function CollectionItems({ collection }: { collection: CollectionDetail }
                 )}
               </Link>
               <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-micro font-medium tabular-nums">{index + 1}</span>
+              {canEdit && (
               <div className="dv-card-actions absolute top-2 right-2 flex gap-1 opacity-100">
                 <Button variant="secondary" size="icon-sm" aria-label="Move earlier" disabled={index === 0} onClick={() => move(index, -1)} className="bg-background/90">
                   <ArrowUp />
@@ -284,6 +287,7 @@ export function CollectionItems({ collection }: { collection: CollectionDetail }
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+              )}
             </div>
             <div className="min-w-0">
               <h3 className="truncate text-title font-medium">
@@ -293,7 +297,16 @@ export function CollectionItems({ collection }: { collection: CollectionDetail }
               </h3>
               <p className="truncate text-meta text-muted-foreground">{[r.siteName ?? r.sourceDomain, r.industry?.name].filter(Boolean).join(" · ")}</p>
             </div>
-            <NoteEditor collectionId={collection.id} referenceId={r.id} initial={item.note} label={isMoodboard ? "Why this reference?" : "Note"} />
+            {canEdit ? (
+              <NoteEditor collectionId={collection.id} referenceId={r.id} initial={item.note} label={isMoodboard ? "Why this reference?" : "Note"} />
+            ) : (
+              item.note && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-micro text-subtle-foreground">{isMoodboard ? "Why this reference?" : "Note"}</span>
+                  <p className="text-meta whitespace-pre-line text-muted-foreground">{item.note}</p>
+                </div>
+              )
+            )}
           </li>
         );
       })}

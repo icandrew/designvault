@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FolderClosed, Plus } from "lucide-react";
+import { OwnerOnly } from "@/components/app/access";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { NewCollectionButton } from "@/components/collections/collection-dialog";
 import { EmptyState } from "@/components/gallery/empty-state";
@@ -19,9 +20,11 @@ export default async function CollectionsPage() {
         count={collections.length}
         actions={
           collections.length > 0 && (
-            <NewCollectionButton>
-              <Plus className="size-4" /> New collection
-            </NewCollectionButton>
+            <OwnerOnly>
+              <NewCollectionButton>
+                <Plus className="size-4" /> New collection
+              </NewCollectionButton>
+            </OwnerOnly>
           )
         }
       />
@@ -31,9 +34,11 @@ export default async function CollectionsPage() {
           title="No collections yet"
           description="Collections group references without duplicating images. Create a project moodboard to collect references for a specific website brief."
         >
-          <NewCollectionButton>
-            <Plus className="size-4" /> Create a collection
-          </NewCollectionButton>
+          <OwnerOnly>
+            <NewCollectionButton>
+              <Plus className="size-4" /> Create a collection
+            </NewCollectionButton>
+          </OwnerOnly>
         </EmptyState>
       ) : (
         <ul className="grid gap-x-5 gap-y-8 [grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr))]">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { Clock3 } from "lucide-react";
+import { OwnerOnly } from "@/components/app/access";
 import { PageContainer, PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/gallery/empty-state";
 import { Gallery } from "@/components/gallery/gallery";
@@ -42,9 +43,11 @@ export default async function RecentPage() {
       <PageHeader title="Recently added" description="Your latest saved references, newest first." count={page.items.length < page.total ? undefined : page.total} />
       {groups.length === 0 ? (
         <EmptyState icon={Clock3} title="Nothing added yet" description="New references will appear here as you save them.">
-          <Button asChild>
-            <Link href="/references/new">Add reference</Link>
-          </Button>
+          <OwnerOnly>
+            <Button asChild>
+              <Link href="/references/new">Add reference</Link>
+            </Button>
+          </OwnerOnly>
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-12">

@@ -32,8 +32,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const theme = asTheme(store.get(THEME_COOKIE)?.value);
   const sidebarCollapsed = store.get(SIDEBAR_COOKIE)?.value === "collapsed";
   const { directUploads, password } = getConfig();
+  const h = await headers();
   // The login page renders without the app shell (and without reading the vault).
-  const bare = (await headers()).get("x-dv-bare") === "1";
+  const bare = h.get("x-dv-bare") === "1";
+  // Signed-out visitor of a public vault (set by the proxy, never by the client).
+  const viewer = h.get("x-dv-viewer") === "1";
   const [stats, collections] = bare ? [null, []] : await Promise.all([getLibraryStats(), listCollectionOptions()]);
 
   return (
@@ -48,7 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="min-h-full">
-        <Providers initialTheme={theme}>
+        <Providers initialTheme={theme} canEdit={!viewer}>
           {bare || !stats ? (
             children
           ) : (
@@ -56,7 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               sidebarCollapsed={sidebarCollapsed}
               counts={{ references: stats.references, favorites: stats.favorites }}
               collections={collections.slice(0, 6)}
-              canSignOut={Boolean(password)}
+              canSignOut={Boolean(password) && !viewer}
             >
               {children}
             </AppShell>

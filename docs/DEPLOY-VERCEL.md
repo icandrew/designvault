@@ -123,6 +123,25 @@ To switch back to the local vault, remove it and add it again without the `-e` s
 
 ---
 
+## Let anyone browse (view-only)
+
+Want to share your library publicly while staying the only one who can change it? Add this environment variable in Vercel and redeploy:
+
+| Name | Value |
+| --- | --- |
+| `DESIGN_VAULT_PUBLIC_VIEW` | `true` |
+
+Then visitors who aren't signed in can:
+
+- browse the gallery, search and filters, Explore, Collections (including your selection notes), Favorites and Recently added;
+- open references, view screenshots and videos, and download originals.
+
+They can't add, edit, favorite, collect or delete anything. They also can't see Settings (where the API key lives), the agent API or the JSON export. The server enforces this on every request, not just by hiding buttons.
+
+You sign in with **Owner sign in** at the bottom of the sidebar (or the **Sign in** button) to get all your controls back. To make the vault private again, remove the variable (or set it to `false`) and redeploy.
+
+> Everything in your references becomes public, including curator notes and source links. Leave out anything you don't want to share.
+
 ## Everyday use
 
 - **Updating the app:** push changes to GitHub, and Vercel redeploys automatically. Database updates (migrations) run during the build.

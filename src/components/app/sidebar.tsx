@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { FolderClosed, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FolderClosed, LogIn, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useCanEdit } from "./access";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { setPrefCookie, SIDEBAR_COOKIE } from "@/lib/prefs";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function NavList({
   onNavigate,
 }: NavData & { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const canEdit = useCanEdit();
 
   const item = (href: string, label: string, Icon: React.ComponentType<{ className?: string }>, count?: number) => {
     const active = isActive(pathname, href);
@@ -96,7 +98,7 @@ export function NavList({
         </div>
       )}
       <ul className="mt-auto flex flex-col gap-0.5">
-        {item(SETTINGS_ITEM.href, SETTINGS_ITEM.label, SETTINGS_ITEM.icon)}
+        {canEdit ? item(SETTINGS_ITEM.href, SETTINGS_ITEM.label, SETTINGS_ITEM.icon) : item("/login", "Owner sign in", LogIn)}
         {canSignOut && (
           <li>
             <button
