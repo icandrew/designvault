@@ -12,7 +12,8 @@ import path from "node:path";
  */
 function resolveDir(value: string | undefined, fallback: string) {
   const dir = value && value.trim() ? value.trim() : fallback;
-  return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+  // The ignore comment stops Vercel's bundler from copying the whole project into every function.
+  return path.isAbsolute(dir) ? dir : path.resolve(/*turbopackIgnore: true*/ process.cwd(), dir);
 }
 
 function env(name: string) {
