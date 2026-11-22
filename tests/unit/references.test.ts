@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { referenceInputSchema } from "@/lib/domain";
-import { closeDb } from "@/server/db/client";
+import { closeDb, rawAll } from "@/server/db/client";
 import { processImage, processVideo } from "@/server/images";
-import { addToCollection, createCollection, getCollection, removeFromCollection } from "@/server/repositories/collections";
+import { addToCollection, createCollection, deleteCollection, getCollection, removeFromCollection } from "@/server/repositories/collections";
 import {
   addImages,
   createReference,
@@ -18,7 +18,7 @@ import {
   setFavorite,
   updateReference,
 } from "@/server/repositories/references";
-import { createTerm, DuplicateTermError, listTerms } from "@/server/repositories/taxonomy";
+import { createTerm, deleteTerm, DuplicateTermError, listTerms } from "@/server/repositories/taxonomy";
 import { addReference, makePng, createTempVault } from "./helpers";
 
 const vault = createTempVault();
@@ -209,6 +209,27 @@ describe("video references", () => {
 
     await deleteReference(id);
     expect(storedFiles().length).toBe(before);
+  });
+});
+
+describe("deletes leave no orphaned rows (hosted libSQL doesn't enforce foreign keys)", () => {
+  it("removes related rows for references, collections and terms", async () => {
+    const termId = await createTerm("tag", "Orphan check tag").then((t) => t.id);
+    const refId = await addReference({ title: "Orphan check", tags: ["Orphan check tag"], analysis: { observations: "Observed" } });
+    const colId = await createCollection({ name: "Orphan check collection", kind: "collection" });
+    await addToCollection(colId, [refId], "note");
+    const count = async (sql: string, ...params: string[]) => Number((await rawAll<{ n: number }>(sql, params))[0].n);
+
+    await deleteTerm(termId);
+    expect(await count(`select count(*) as n from reference_terms where term_id = ?`, termId)).toBe(0);
+
+    await deleteReference(refId);
+    for (const table of ["reference_terms", "reference_images", "design_analyses", "collection_references"]) {
+      expect(await count(`select count(*) as n from ${table} where reference_id = ?`, refId)).toBe(0);
+    }
+
+    await deleteCollection(colId);
+    expect(await count(`select count(*) as n from collection_references where collection_id = ?`, colId)).toBe(0);
   });
 });
 

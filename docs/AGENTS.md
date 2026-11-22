@@ -24,6 +24,8 @@ claude mcp add design-vault --scope user -- node "D:/design-vault/mcp/start.mjs"
 
 To remove it later: `claude mcp remove design-vault --scope user`.
 
+**Online vault (Vercel):** the same MCP server can read your hosted vault if you pass the Turso and Blob settings with `-e` (use a read-only Turso token). Agents can also use the REST API at your site's address with the API key. See [DEPLOY-VERCEL.md](DEPLOY-VERCEL.md#connect-claude-code-to-the-online-vault-optional).
+
 ### Tools
 
 | Tool | What it returns |

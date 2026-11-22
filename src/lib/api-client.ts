@@ -53,7 +53,51 @@ export interface UploadResult {
  */
 export async function uploadFile(file: File, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<UploadResult> {
   const video = mediaKind(file) === "video" ? await captureVideoPoster(file).catch((e: Error) => Promise.reject(new ApiError(e.message, 0))) : null;
+  if (typeof document !== "undefined" && document.documentElement.dataset.uploads === "direct") {
+    return directUpload(file, video, onProgress, signal);
+  }
   return sendUpload(file, video, onProgress, signal);
+}
+
+function newUploadId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return `up_${btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
+}
+
+/**
+ * Hosted mode: upload straight to private Blob storage (no 4.5 MB request
+ * limit), then ask the app to validate the staged file.
+ */
+async function directUpload(file: File, video: VideoPoster | null, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<UploadResult> {
+  const { upload } = await import("@vercel/blob/client");
+  const uploadId = newUploadId();
+  const options = { access: "private" as const, handleUploadUrl: "/api/app/blob-upload", abortSignal: signal };
+  try {
+    if (video) await upload(`staging/${uploadId}.poster`, video.poster, { ...options, contentType: video.poster.type || "image/png" });
+    await upload(`staging/${uploadId}.bin`, file, {
+      ...options,
+      contentType: file.type || (mediaKind(file) === "video" ? "video/mp4" : "application/octet-stream"),
+      multipart: file.size > 20 * 1024 * 1024,
+      onUploadProgress: (p) => onProgress(Math.min(0.99, p.percentage / 100)),
+    });
+  } catch (error) {
+    if (signal?.aborted) throw new ApiError("Upload cancelled.", 0, "aborted");
+    const message = error instanceof Error ? error.message : "";
+    throw new ApiError(
+      /content type|contentType/i.test(message)
+        ? "Unsupported file type. Use PNG, JPEG, WebP or MP4."
+        : /size|too large/i.test(message)
+          ? "The file is too large."
+          : "Upload failed. Check your connection and try again.",
+      0,
+    );
+  }
+  onProgress(1);
+  return api<UploadResult>("/api/app/uploads", {
+    method: "POST",
+    signal,
+    json: { uploadId, width: video?.width, height: video?.height, durationMs: video?.durationMs },
+  });
 }
 
 function sendUpload(file: File, video: VideoPoster | null, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<UploadResult> {

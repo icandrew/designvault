@@ -45,6 +45,8 @@ export interface ReferenceFormProps {
   termOptions: Record<TermKind, string[]>;
   collections: { id: string; name: string }[];
   timestamps?: { createdAt: string; updatedAt: string };
+  /** URL capture needs a local browser; hidden on hosted deployments. */
+  captureEnabled?: boolean;
 }
 
 const EMPTY: FormInput = {
@@ -160,7 +162,7 @@ function RadioRow<T extends string>({
   );
 }
 
-export function ReferenceForm({ mode, referenceId, initial, termOptions, collections, timestamps }: ReferenceFormProps) {
+export function ReferenceForm({ mode, referenceId, initial, termOptions, collections, timestamps, captureEnabled = true }: ReferenceFormProps) {
   const router = useRouter();
   const defaults = useMemo(() => ({ ...EMPTY, ...initial }), [initial]);
   const form = useForm<FormInput, unknown, FormOutput>({
@@ -359,23 +361,31 @@ export function ReferenceForm({ mode, referenceId, initial, termOptions, collect
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} noValidate>
       {mode === "create" && (
-        <Section id="screenshots" title="Screenshots" description="Upload screenshots or MP4 videos, or capture a public URL. The cover (star) is the gallery thumbnail; videos autoplay there.">
-          <Tabs defaultValue="upload" className="gap-4">
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="upload" className="flex-1 sm:flex-none">
-                <Upload className="size-4" /> Upload
-              </TabsTrigger>
-              <TabsTrigger value="capture" className="flex-1 sm:flex-none">
-                <Globe className="size-4" /> Capture from URL
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="upload">
-              <DropZone onFiles={staged.addFiles} compact={staged.images.length > 0} label={staged.images.length ? "Add more screenshots" : undefined} />
-            </TabsContent>
-            <TabsContent value="capture">
-              <CapturePanel onCaptured={onCaptured} />
-            </TabsContent>
-          </Tabs>
+        <Section
+          id="screenshots"
+          title="Screenshots"
+          description={`Upload screenshots or MP4 videos${captureEnabled ? ", or capture a public URL" : ""}. The cover (star) is the gallery thumbnail; videos autoplay there.`}
+        >
+          {captureEnabled ? (
+            <Tabs defaultValue="upload" className="gap-4">
+              <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="upload" className="flex-1 sm:flex-none">
+                  <Upload className="size-4" /> Upload
+                </TabsTrigger>
+                <TabsTrigger value="capture" className="flex-1 sm:flex-none">
+                  <Globe className="size-4" /> Capture from URL
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="upload">
+                <DropZone onFiles={staged.addFiles} compact={staged.images.length > 0} label={staged.images.length ? "Add more screenshots" : undefined} />
+              </TabsContent>
+              <TabsContent value="capture">
+                <CapturePanel onCaptured={onCaptured} />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <DropZone onFiles={staged.addFiles} compact={staged.images.length > 0} label={staged.images.length ? "Add more screenshots" : undefined} />
+          )}
           <StagedImageList
             images={staged.images}
             onRemove={staged.remove}

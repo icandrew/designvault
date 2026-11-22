@@ -34,6 +34,7 @@ export default async function SettingsPage() {
   const h = await headers();
   const [terms, apiKey, stats, usage] = await Promise.all([listTerms(), getApiKey(), getLibraryStats(), getStorage().usage()]);
   const config = getConfig();
+  const hosted = Boolean(config.databaseUrl || config.blobToken);
   const host = h.get("host") ?? "127.0.0.1:3000";
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${host}`;
 
@@ -62,10 +63,14 @@ export default async function SettingsPage() {
       </Section>
 
       <Section id="agents" title="Agent access" description="Let Claude Code and other AI agents search and read your vault. Access is read-only.">
-        <AgentAccess apiKey={apiKey.key} source={apiKey.source} projectDir={process.cwd()} origin={origin} />
+        <AgentAccess apiKey={apiKey.key} source={apiKey.source} projectDir={process.cwd()} origin={origin} hosted={hosted} />
       </Section>
 
-      <Section id="data" title="Data & storage" description="Everything is stored locally on this computer.">
+      <Section
+        id="data"
+        title="Data & storage"
+        description={hosted ? "Stored in your hosted database and Blob storage." : "Everything is stored locally on this computer."}
+      >
         <div className="flex flex-col gap-6">
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[
@@ -80,17 +85,32 @@ export default async function SettingsPage() {
               </div>
             ))}
           </dl>
-          <div className="flex flex-col gap-1 text-meta">
-            <span className="text-subtle-foreground">Data folder</span>
-            <code className="w-fit max-w-full truncate rounded bg-muted px-2 py-1 font-mono text-micro">{config.dataDir}</code>
-            <span className="text-micro text-subtle-foreground">Contains vault.db (metadata) and storage/ (originals, previews and thumbnails stored separately).</span>
-          </div>
+          {hosted ? (
+            <div className="flex flex-col gap-1 text-meta">
+              <span className="text-subtle-foreground">Where your data lives</span>
+              <span className="text-meta text-muted-foreground">
+                Metadata is in your Turso database; originals, previews and thumbnails are private files in Vercel Blob storage.
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1 text-meta">
+              <span className="text-subtle-foreground">Data folder</span>
+              <code className="w-fit max-w-full truncate rounded bg-muted px-2 py-1 font-mono text-micro">{config.dataDir}</code>
+              <span className="text-micro text-subtle-foreground">Contains vault.db (metadata) and storage/ (originals, previews and thumbnails stored separately).</span>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <p className="text-meta font-medium">Backup & export</p>
             <p className="text-meta text-muted-foreground">
-              For a complete backup (database + all images), run <code className="rounded bg-muted px-1 font-mono text-micro">npm run backup</code> in the project
-              folder. Restore with <code className="rounded bg-muted px-1 font-mono text-micro">npm run restore -- &lt;backup-folder&gt;</code> while the app is stopped. The
-              JSON export below contains metadata only.
+              {hosted ? (
+                <>Turso keeps automatic point-in-time backups of the database (see your Turso dashboard). The JSON export below contains metadata only.</>
+              ) : (
+                <>
+                  For a complete backup (database + all images), run <code className="rounded bg-muted px-1 font-mono text-micro">npm run backup</code> in the project
+                  folder. Restore with <code className="rounded bg-muted px-1 font-mono text-micro">npm run restore -- &lt;backup-folder&gt;</code> while the app is stopped.
+                  The JSON export below contains metadata only.
+                </>
+              )}
             </p>
             <div>
               <ExportButton />

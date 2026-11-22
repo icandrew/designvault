@@ -1,6 +1,6 @@
 # Security model
 
-Design Vault is a **personal, local-first** application. It is secured for use on your own computer, not for the public internet.
+Design Vault is a **personal, local-first** application. By default it's secured for use on your own computer. Hosted mode (Vercel) adds a login and private cloud storage. See "Hosted mode" below.
 
 ## What is in place
 
@@ -33,20 +33,43 @@ Design Vault is a **personal, local-first** application. It is secured for use o
 - No secrets are shipped to the browser. The API key is only shown on the Settings page, which is served to same-origin requests from your machine.
 - Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`.
 
+## Hosted mode (Vercel)
+
+When deployed online (see [DEPLOY-VERCEL.md](DEPLOY-VERCEL.md)), these protections are added:
+
+- **Login.** With `DESIGN_VAULT_PASSWORD` set, a proxy (`src/proxy.ts`) runs before every page and API route:
+  - Signed-out page requests redirect to `/login`.
+  - Signed-out app endpoints and images return 401.
+  - The login page renders without reading the vault.
+- **No accidental exposure.** On Vercel without a password, the app serves only a "set a password" notice (HTTP 503), never your data.
+- **Sessions.** An HttpOnly, Secure, SameSite=Lax cookie holds an HMAC-SHA256 signed expiry (30 days). The signing key comes from `DESIGN_VAULT_SESSION_SECRET` or is derived from the password, so changing either signs everyone out.
+- **Login safeguards.**
+  - The password is compared in constant time.
+  - Cross-site login requests are refused.
+  - Failed attempts are delayed and rate-limited (8 per 5 minutes per IP, per server instance).
+- **Agents.** The REST API skips the login but always requires the API key. Requests carrying credentials must present a valid key; a forged `Sec-Fetch-Site` header no longer unlocks images.
+- **Private files.**
+  - Screenshots and videos are stored as private Vercel Blob objects and streamed only through the authenticated image route. They have no public URLs.
+  - Browser uploads use short-lived tokens (30 minutes), each limited to one `staging/<id>` path, the allowed media types and the size limit, with no overwriting.
+  - Every file is still checked by its signature (magic bytes) before it's accepted.
+- **Database.**
+  - Turso connections use HTTPS with an auth token.
+  - The MCP server's hosted connection rejects anything but reads, and a read-only Turso token adds a second layer.
+  - Cascading deletes are done explicitly in code, because hosted libSQL connections don't enforce foreign keys.
+- **No URL capture** on hosted deployments, so there's no server-side browser to abuse.
+
 ## Known limitations
 
 - Anyone with access to your user account can read the `data/` folder directly. Use OS-level disk encryption if that matters to you.
 - DNS rebinding between the SSRF check and the browser's own resolution is mitigated by re-checking every request, but not impossible to exploit in theory.
-- The web UI itself has no login; it relies on binding to localhost.
+- Locally, the web UI has no login unless you set `DESIGN_VAULT_PASSWORD`; it relies on binding to localhost.
+- Hosted mode is single-owner: one shared password, no user accounts. Rate limits are kept in memory per server instance, not globally.
+- API keys are stored in plain text in the database. Rotate the key if you think it leaked.
 
-## Before exposing Design Vault publicly
+## Further hardening (for multi-user or high-value deployments)
 
-Do **not** put the current version on the internet as-is. At minimum:
-
-1. Add real user authentication (e.g. Auth.js / OIDC) and protect every page and `/api/app/*` route; add CSRF tokens in addition to origin checks.
-2. Serve over HTTPS behind a reverse proxy; set HSTS and a Content-Security-Policy.
-3. Move rate limiting to a shared store (Redis) and add request size limits at the proxy.
+1. Replace the shared password with real accounts (e.g. Auth.js / OIDC) and add CSRF tokens on top of origin checks.
+2. Add a Content-Security-Policy and HSTS. Vercel serves HTTPS by default.
+3. Move rate limiting to a shared store (e.g. Upstash Redis).
 4. Store API keys hashed, support multiple scoped keys with expiry, and log access.
-5. Run URL capture in an isolated container or separate network namespace with egress filtering.
-6. Move images to private object storage (S3-compatible) with signed URLs; move the database to PostgreSQL with backups.
-7. Review dependency updates regularly (`npm audit`).
+5. Review dependency updates regularly (`npm audit`).

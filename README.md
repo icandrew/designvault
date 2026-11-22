@@ -104,6 +104,12 @@ REST API documentation: **[docs/API.md](docs/API.md)** (the key is in Settings �
 
 ---
 
+## Putting it online (Vercel)
+
+Design Vault can also run on Vercel with a login password. It then stores references in a Turso database and screenshots and videos in private Vercel Blob storage, and switches automatically when those settings are present. Follow **[docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)**: import the repo, set `DESIGN_VAULT_PASSWORD`, connect Blob and Turso from Vercel's Storage tab, and redeploy. `npm run hosted:import -- .env.hosted` copies your local references into the online vault.
+
+---
+
 ## Backup and restore
 
 Everything lives in the `data` folder: `vault.db` (all metadata) and `storage/` (originals, previews and thumbnails stored separately).
@@ -139,6 +145,9 @@ Optional. Copy `.env.example` to `.env.local` and edit. Environment variables ar
 | `DESIGN_VAULT_MAX_UPLOAD_MB` | `25` | Screenshot size limit |
 | `DESIGN_VAULT_MAX_VIDEO_MB` | `200` | MP4 video size limit |
 | `DESIGN_VAULT_CAPTURE_TIMEOUT_MS` | `30000` | URL capture page-load timeout |
+| `DESIGN_VAULT_PASSWORD` | — | Login password (required on Vercel; optional locally) |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | — | Hosted database (online vault) |
+| `BLOB_READ_WRITE_TOKEN` | — | Hosted file storage (online vault) |
 
 Restart the app after changing them.
 
@@ -157,6 +166,8 @@ Restart the app after changing them.
 | `npm test` | Unit & integration tests (data layer, security, agent search, MCP) |
 | `npm run test:e2e` | End-to-end browser tests (isolated test vault) |
 | `npm run test:mcp` | Connect to the MCP server like Claude Code and call every tool on your real vault |
+| `npm run test:libsql` | Run the unit tests on the libSQL engine used by hosted (Turso) vaults |
+| `npm run hosted:import -- .env.hosted` | Copy your local vault into a hosted (Vercel) vault |
 | `npm run typecheck` / `npm run lint` | Static checks |
 | `npm run db:generate` | Create a migration after changing `src/server/db/schema.ts` (developers) |
 
@@ -194,7 +205,7 @@ tests/unit      Vitest     tests/e2e  Playwright
 
 **Key decisions**
 
-- **Persistence behind repositories.** Pages, API routes and the MCP server only call `src/server/repositories/*`. Moving to PostgreSQL means porting `schema.ts` to `pg-core` and replacing `db/client.ts`; images go through the `StorageDriver` interface, so an S3-compatible driver can replace the local one without touching features.
+- **Persistence behind repositories.** Pages, API routes and the MCP server only call `src/server/repositories/*`. `db/client.ts` has two engines with the same schema and migrations: local `node:sqlite` and hosted libSQL/Turso over HTTPS. Images go through the `StorageDriver` interface, which has local-disk and private Vercel Blob drivers; staged uploads follow the same split.
 - **SQLite via Node's built-in `node:sqlite`** (no native build step) with Drizzle ORM and generated SQL migrations that apply automatically on startup. WAL mode lets the app and the MCP server read concurrently.
 - **One taxonomy table, many classification systems.** `terms(kind, name, slug)` with a unique `(kind, slug)` index prevents case-insensitive duplicates while keeping industry, page type, components, style, layout, interaction and tags independent.
 - **Images**: originals are stored untouched; a ≤720 px gallery thumbnail (tall pages cropped from the top to 1:2) and a ≤1800 px preview (never upscaled) are generated with `sharp`. Replacing or deleting an image removes its files — no orphans.
@@ -206,7 +217,7 @@ Security model and what to change before exposing the app publicly: **[docs/SECU
 
 ## Testing
 
-- `npm test` — 29 tests: reference CRUD, multiple images and file cleanup, persistence across restarts, keyword search and combined filters, collections, favorites, case-insensitive tags, upload signature validation, storage traversal protection, SSRF guard, agent ranking and evidence separation, and the MCP server (read-only tool list, real search results, image content, collections, verified interactions, writes rejected).
+- `npm test` — 37 tests (`npm run test:libsql` runs the same suite on the hosted database engine): reference CRUD, deletes leaving no orphaned rows, login sessions, multiple images and file cleanup, persistence across restarts, keyword search and combined filters, collections, favorites, case-insensitive tags, upload signature validation, storage traversal protection, SSRF guard, agent ranking and evidence separation, and the MCP server (read-only tool list, real search results, image content, collections, verified interactions, writes rejected).
 - `npm run test:e2e` — builds the app and drives it in Chromium against an isolated `test-data/e2e` vault: empty state, upload with validation, persistence after reload, viewer, edit, search, filters, favorites, collections with notes, REST API auth, URL capture, theme switching, no horizontal overflow at 360–1920 px, mobile navigation, delete with confirmation.
 
 ## Roadmap (architected for, not built)

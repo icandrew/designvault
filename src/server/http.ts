@@ -124,10 +124,17 @@ export async function requireAgentAuth(req: Request) {
 
 /** Same-origin pages (img tags, opened links) or API-key holders may read images. */
 export async function requireImageAccess(req: Request) {
+  const key = extractApiKey(req);
+  // Presented credentials must be a valid key (the login proxy lets requests
+  // carrying credentials through to be checked here).
+  if (key || req.headers.has("authorization") || req.headers.has("x-api-key")) {
+    if (key && (await verifyApiKey(key))) return;
+    throw new HttpError(401, "Invalid API key.", "unauthorized");
+  }
+  // Browser requests from the app. When a login password is set, the proxy has
+  // already verified the session cookie before this point.
   const site = req.headers.get("sec-fetch-site");
   if (site === "same-origin" || site === "none") return;
-  const key = extractApiKey(req);
-  if (key && (await verifyApiKey(key))) return;
   throw new HttpError(401, "Image access requires the Design Vault app or an API key.", "unauthorized");
 }
 

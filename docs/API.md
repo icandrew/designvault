@@ -2,7 +2,7 @@
 
 The REST API lets AI agents and scripts search and read your vault. It is **read-only**: there are no endpoints that create, change or delete data. (The web app uses separate, same-origin-only endpoints under `/api/app/*` for writing.)
 
-- Base URL: `http://127.0.0.1:3000` (the app must be running: `npm run dev` or `npm start`)
+- Base URL: `http://127.0.0.1:3000` (the app must be running: `npm run dev` or `npm start`), or your site's address for an online vault (e.g. `https://designvault.vercel.app`). The API key works without the login password.
 - Authentication: send your API key on every request
   - `Authorization: Bearer <key>` (preferred), or
   - `X-API-Key: <key>`

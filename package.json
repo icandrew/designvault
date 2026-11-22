@@ -17,11 +17,16 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "skill:install": "node scripts/install-skill.mjs",
-    "test:mcp": "node scripts/mcp-smoke.mjs"
+    "test:mcp": "node scripts/mcp-smoke.mjs",
+    "vercel-build": "tsx scripts/migrate.ts && next build",
+    "hosted:import": "tsx scripts/import-to-hosted.ts",
+    "test:libsql": "node scripts/test-libsql.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.8",
+    "@libsql/client": "^0.18.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@vercel/blob": "^2.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -54,5 +59,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

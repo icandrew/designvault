@@ -4,7 +4,6 @@
  * (REST + MCP) go through these functions.
  */
 import { and, asc, eq, inArray } from "drizzle-orm";
-import type { SQLInputValue } from "node:sqlite";
 import {
   TERM_FILTER_KEYS,
   type Filters,
@@ -20,7 +19,7 @@ import type {
   ReferenceSummary,
   TermRef,
 } from "@/lib/types";
-import { getDb, rawAll, transaction } from "../db/client";
+import { getDb, rawAll, transaction, type SqlValue } from "../db/client";
 import {
   collectionReferences,
   collections,
@@ -109,7 +108,7 @@ export function tokenize(q: string, max = 12) {
 /** Builds a WHERE clause (alias `r`) for the shared filter model. */
 export function buildWhere(filters: Partial<Filters>, options: { includeArchived?: boolean } = {}) {
   const clauses: string[] = [];
-  const params: SQLInputValue[] = [];
+  const params: SqlValue[] = [];
   const placeholders = (values: string[]) => values.map(() => "?").join(",");
 
   if (filters.q) {
@@ -607,7 +606,19 @@ export async function deleteReference(id: string) {
     .select({ o: referenceImages.originalKey, p: referenceImages.previewKey, t: referenceImages.thumbKey })
     .from(referenceImages)
     .where(eq(referenceImages.referenceId, id));
-  const deleted = await db.delete(references).where(eq(references.id, id)).returning({ id: references.id });
+  const imageIds = await db.select({ id: referenceImages.id }).from(referenceImages).where(eq(referenceImages.referenceId, id));
+  const deleted = await transaction(async () => {
+    // Child rows are removed explicitly (not only via ON DELETE CASCADE), because
+    // hosted libSQL connections don't enforce foreign keys.
+    if (imageIds.length) {
+      await db.update(collections).set({ coverImageId: null }).where(inArray(collections.coverImageId, imageIds.map((i) => i.id)));
+    }
+    await db.delete(referenceTerms).where(eq(referenceTerms.referenceId, id));
+    await db.delete(designAnalyses).where(eq(designAnalyses.referenceId, id));
+    await db.delete(collectionReferences).where(eq(collectionReferences.referenceId, id));
+    await db.delete(referenceImages).where(eq(referenceImages.referenceId, id));
+    return db.delete(references).where(eq(references.id, id)).returning({ id: references.id });
+  });
   if (!deleted.length) throw new NotFoundError();
   await deleteFiles(images.flatMap((i) => [i.o, i.p, i.t]));
 }
@@ -680,7 +691,10 @@ export async function deleteImage(imageId: string) {
   ]);
   if (Number(n) <= 1) throw new Error("A reference needs at least one screenshot. Replace it instead.");
   const db = await getDb();
-  await db.delete(referenceImages).where(eq(referenceImages.id, imageId));
+  await transaction(async () => {
+    await db.update(collections).set({ coverImageId: null }).where(eq(collections.coverImageId, imageId));
+    await db.delete(referenceImages).where(eq(referenceImages.id, imageId));
+  });
   await deleteFiles([old.originalKey, old.previewKey, old.thumbKey]);
   await touch(old.referenceId);
 }

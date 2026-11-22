@@ -151,7 +151,10 @@ export async function updateCollection(id: string, input: CollectionInput) {
 
 export async function deleteCollection(id: string) {
   const db = await getDb();
-  const result = await db.delete(collections).where(eq(collections.id, id)).returning({ id: collections.id });
+  const result = await transaction(async () => {
+    await db.delete(collectionReferences).where(eq(collectionReferences.collectionId, id));
+    return db.delete(collections).where(eq(collections.id, id)).returning({ id: collections.id });
+  });
   if (!result.length) throw new NotFoundError("Collection");
 }
 

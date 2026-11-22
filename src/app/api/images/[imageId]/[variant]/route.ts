@@ -49,6 +49,14 @@ export const GET = handle(async (req: Request, { params }: Ctx) => {
     if (start >= size) {
       return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${size}` } });
     }
+    if (storage.openStream) {
+      const stream = await storage.openStream(key, { start, end });
+      if (!stream) throw new HttpError(404, "The file is missing from storage.", "image_missing");
+      return new Response(stream, {
+        status: 206,
+        headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) },
+      });
+    }
     const chunk = await storage.getRange(key, start, end);
     if (!chunk) throw new HttpError(404, "The file is missing from storage.", "image_missing");
     return new Response(new Uint8Array(chunk), {
@@ -57,6 +65,12 @@ export const GET = handle(async (req: Request, { params }: Ctx) => {
     });
   }
 
+  if (storage.openStream) {
+    // Remote storage: stream through without buffering the whole file.
+    const stream = await storage.openStream(key);
+    if (!stream) throw new HttpError(404, "The file is missing from storage.", "image_missing");
+    return new Response(stream, { headers: { ...headers, "Content-Length": String(size) } });
+  }
   const data = await storage.get(key);
   if (!data) throw new HttpError(404, "The file is missing from storage.", "image_missing");
   return new Response(new Uint8Array(data), { headers: { ...headers, "Content-Length": String(data.length) } });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { capture, CaptureError } from "@/server/capture";
+import { getConfig } from "@/server/config";
 import { handle, HttpError, ok, rateLimit, readJson, requireSameOrigin } from "@/server/http";
 import { BlockedUrlError } from "@/server/net-guard";
 
@@ -16,8 +16,13 @@ const schema = z.object({
 /** Captures screenshots of a public URL and stages them for the Add Reference form. */
 export const POST = handle(async (req: Request) => {
   requireSameOrigin(req);
+  if (!getConfig().captureEnabled) {
+    throw new HttpError(404, "URL capture isn’t available on this hosted vault. Upload a screenshot instead.", "not_available");
+  }
   rateLimit("capture", 10, 60_000);
   const body = schema.parse(await readJson(req));
+  // Loaded on demand: Playwright isn't needed (or installed) on hosted deployments.
+  const { capture, CaptureError } = await import("@/server/capture");
   try {
     return ok(await capture(body));
   } catch (error) {

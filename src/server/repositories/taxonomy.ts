@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { getDb, rawAll } from "../db/client";
+import { getDb, rawAll, transaction } from "../db/client";
 import { references, referenceTerms, terms, type TermKind } from "../db/schema";
 import { newId, slugify } from "../ids";
 
@@ -146,7 +146,13 @@ export async function renameTerm(id: string, name: string) {
 export async function deleteTerm(id: string) {
   const db = await getDb();
   const affected = await referencesUsingTerm(id);
-  await db.delete(terms).where(eq(terms.id, id));
+  // Explicit (hosted libSQL doesn't enforce ON DELETE rules).
+  await transaction(async () => {
+    await db.delete(referenceTerms).where(eq(referenceTerms.termId, id));
+    await db.update(references).set({ industryId: null }).where(eq(references.industryId, id));
+    await db.update(references).set({ pageTypeId: null }).where(eq(references.pageTypeId, id));
+    await db.delete(terms).where(eq(terms.id, id));
+  });
   const { rebuildSearchText } = await import("./references");
   for (const refId of affected) await rebuildSearchText(refId);
 }

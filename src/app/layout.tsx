@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { AppShell } from "@/components/app/app-shell";
 import { Providers } from "@/components/app/providers";
 import { asTheme, SIDEBAR_COOKIE, THEME_COOKIE, THEME_SCRIPT } from "@/lib/prefs";
+import { getConfig } from "@/server/config";
 import { getLibraryStats } from "@/server/repositories/references";
 import { listCollectionOptions } from "@/server/repositories/collections";
 import "./globals.css";
@@ -30,13 +31,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const store = await cookies();
   const theme = asTheme(store.get(THEME_COOKIE)?.value);
   const sidebarCollapsed = store.get(SIDEBAR_COOKIE)?.value === "collapsed";
-  const [stats, collections] = await Promise.all([getLibraryStats(), listCollectionOptions()]);
+  const { directUploads, password } = getConfig();
+  // The login page renders without the app shell (and without reading the vault).
+  const bare = (await headers()).get("x-dv-bare") === "1";
+  const [stats, collections] = bare ? [null, []] : await Promise.all([getLibraryStats(), listCollectionOptions()]);
 
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${theme === "dark" ? "dark" : ""} h-full antialiased`}
       data-theme-pref={theme}
+      data-uploads={directUploads ? "direct" : "server"}
       suppressHydrationWarning
     >
       <head>
@@ -44,13 +49,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full">
         <Providers initialTheme={theme}>
-          <AppShell
-            sidebarCollapsed={sidebarCollapsed}
-            counts={{ references: stats.references, favorites: stats.favorites }}
-            collections={collections.slice(0, 6)}
-          >
-            {children}
-          </AppShell>
+          {bare || !stats ? (
+            children
+          ) : (
+            <AppShell
+              sidebarCollapsed={sidebarCollapsed}
+              counts={{ references: stats.references, favorites: stats.favorites }}
+              collections={collections.slice(0, 6)}
+              canSignOut={Boolean(password)}
+            >
+              {children}
+            </AppShell>
+          )}
         </Providers>
       </body>
     </html>

@@ -21,6 +21,11 @@ export interface StorageDriver {
   getRange(key: string, start: number, end: number): Promise<Buffer | null>;
   /** Total bytes and file count, for the settings page. */
   usage(): Promise<{ bytes: number; files: number }>;
+  /**
+   * Optional streaming read (used by remote drivers so large files are never
+   * buffered in a serverless function). `range` is inclusive.
+   */
+  openStream?(key: string, range?: { start: number; end: number }): Promise<ReadableStream<Uint8Array> | null>;
 }
 
 const KEY_PATTERN = /^(originals|previews|thumbs)\/img_[0-9a-z]{6,32}\.(png|jpg|webp|mp4)$/;
@@ -118,10 +123,112 @@ let driver: StorageDriver | null = null;
 let driverRoot: string | null = null;
 
 export function getStorage(): StorageDriver {
-  const { storageDir } = getConfig();
-  if (!driver || driverRoot !== storageDir) {
-    driver = new LocalStorageDriver(storageDir);
-    driverRoot = storageDir;
+  const { storageDir, blobToken } = getConfig();
+  const root = blobToken ? `blob:${blobToken.slice(0, 24)}` : storageDir;
+  if (!driver || driverRoot !== root) {
+    driver = blobToken ? new BlobStorageDriver(blobToken) : new LocalStorageDriver(storageDir);
+    driverRoot = root;
   }
   return driver;
+}
+
+const CONTENT_TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", webp: "image/webp", mp4: "video/mp4" };
+
+/**
+ * Vercel Blob driver (hosted mode). Files are stored as **private** blobs at
+ * the same keys as on disk, so they are only reachable through the app's
+ * authenticated image route — never via a public URL.
+ */
+export class BlobStorageDriver implements StorageDriver {
+  constructor(private readonly token: string) {}
+
+  private sdk() {
+    return import("@vercel/blob");
+  }
+
+  async put(key: string, data: Buffer) {
+    assertValidKey(key);
+    const { put } = await this.sdk();
+    await put(key, data, {
+      access: "private",
+      token: this.token,
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: CONTENT_TYPES[key.split(".").pop()!],
+      multipart: data.length > 20 * 1024 * 1024,
+    });
+  }
+
+  async openStream(key: string, range?: { start: number; end: number }) {
+    assertValidKey(key);
+    const { get } = await this.sdk();
+    const result = await get(key, {
+      access: "private",
+      token: this.token,
+      headers: range ? { Range: `bytes=${range.start}-${range.end}` } : undefined,
+    }).catch((error: unknown) => {
+      if (isBlobNotFound(error)) return null;
+      throw error;
+    });
+    return result?.stream ?? null;
+  }
+
+  async get(key: string) {
+    const stream = await this.openStream(key);
+    if (!stream) return null;
+    return Buffer.from(await new Response(stream).arrayBuffer());
+  }
+
+  async getRange(key: string, start: number, end: number) {
+    const stream = await this.openStream(key, { start, end });
+    if (!stream) return null;
+    const buf = Buffer.from(await new Response(stream).arrayBuffer());
+    // If the store ignored the Range header, slice it ourselves.
+    return buf.length > end - start + 1 ? buf.subarray(start, end + 1) : buf;
+  }
+
+  async delete(key: string) {
+    assertValidKey(key);
+    const { del } = await this.sdk();
+    await del(key, { token: this.token }).catch((error: unknown) => {
+      if (!isBlobNotFound(error)) throw error;
+    });
+  }
+
+  async size(key: string) {
+    assertValidKey(key);
+    const { head } = await this.sdk();
+    try {
+      return (await head(key, { token: this.token })).size;
+    } catch (error) {
+      if (isBlobNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async exists(key: string) {
+    return (await this.size(key)) !== null;
+  }
+
+  async usage() {
+    const { list } = await this.sdk();
+    let bytes = 0;
+    let files = 0;
+    for (const prefix of ["originals/", "previews/", "thumbs/"]) {
+      let cursor: string | undefined;
+      do {
+        const page = await list({ prefix, cursor, token: this.token, limit: 1000 });
+        for (const b of page.blobs) {
+          bytes += b.size;
+          files += 1;
+        }
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+    }
+    return { bytes, files };
+  }
+}
+
+export function isBlobNotFound(error: unknown) {
+  return error instanceof Error && (error.name === "BlobNotFoundError" || /not.?found/i.test(error.message));
 }

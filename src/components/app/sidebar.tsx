@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { FolderClosed, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { FolderClosed, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { setPrefCookie, SIDEBAR_COOKIE } from "@/lib/prefs";
 import { cn } from "@/lib/utils";
@@ -13,11 +13,19 @@ import { isActive, NAV_ITEMS, SETTINGS_ITEM } from "./nav-items";
 export interface NavData {
   counts: { references: number; favorites: number };
   collections: { id: string; name: string }[];
+  /** Hosted vaults with a login show a Sign out item. */
+  canSignOut?: boolean;
+}
+
+async function signOut() {
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+  window.location.assign("/login");
 }
 
 export function NavList({
   counts,
   collections,
+  canSignOut = false,
   collapsed = false,
   onNavigate,
 }: NavData & { collapsed?: boolean; onNavigate?: () => void }) {
@@ -87,7 +95,26 @@ export function NavList({
           </ul>
         </div>
       )}
-      <ul className="mt-auto flex flex-col gap-0.5">{item(SETTINGS_ITEM.href, SETTINGS_ITEM.label, SETTINGS_ITEM.icon)}</ul>
+      <ul className="mt-auto flex flex-col gap-0.5">
+        {item(SETTINGS_ITEM.href, SETTINGS_ITEM.label, SETTINGS_ITEM.icon)}
+        {canSignOut && (
+          <li>
+            <button
+              type="button"
+              onClick={signOut}
+              aria-label="Sign out"
+              title={collapsed ? "Sign out" : undefined}
+              className={cn(
+                "group flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-body text-muted-foreground transition-colors duration-150 hover:bg-sidebar-accent hover:text-foreground",
+                collapsed && "justify-center px-0",
+              )}
+            >
+              <LogOut className="size-[17px] shrink-0 text-subtle-foreground group-hover:text-foreground" />
+              {!collapsed && <span className="flex-1 truncate text-left">Sign out</span>}
+            </button>
+          </li>
+        )}
+      </ul>
     </nav>
   );
 }

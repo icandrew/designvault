@@ -32,11 +32,13 @@ export function AgentAccess({
   source,
   projectDir,
   origin,
+  hosted = false,
 }: {
   apiKey: string;
   source: "env" | "settings";
   projectDir: string;
   origin: string;
+  hosted?: boolean;
 }) {
   const [key, setKey] = useState(apiKey);
   const [reveal, setReveal] = useState(false);
@@ -91,26 +93,40 @@ export function AgentAccess({
           </div>
         </div>
         <p className="text-micro text-subtle-foreground">
-          {source === "env" ? "Set by DESIGN_VAULT_API_KEY in .env.local." : "Stored in your local database."} The key grants read-only access to
+          {source === "env" ? "Set by DESIGN_VAULT_API_KEY in your environment settings." : "Stored in your vault database."} The key grants read-only access to
           references, collections, taxonomy and images. There is no write access through the API or MCP server.
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <p className="text-meta font-medium">Connect Claude Code (MCP)</p>
-        <p className="text-meta text-muted-foreground">
-          Run this once in any terminal. It registers the local <code className="font-mono">design-vault</code> MCP server for all your Claude Code projects
-          (user scope). The MCP server reads the database directly, so the web app does not need to be running.
-        </p>
-        <CodeBlock label="MCP command" code={`claude mcp add design-vault --scope user -- node "${dir}/mcp/start.mjs"`} />
-        <p className="text-micro text-subtle-foreground">Then restart Claude Code and run /mcp to confirm “design-vault” is connected.</p>
-      </div>
+      {hosted ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-meta font-medium">Connect Claude Code (MCP)</p>
+          <p className="text-meta text-muted-foreground">
+            The MCP server runs on your own computer from a copy of the Design Vault project. To point it at this hosted vault, give it your Turso database URL and
+            a <strong>read-only</strong> Turso token, plus the Blob token for screenshots. Step-by-step instructions are in docs/DEPLOY-VERCEL.md (“Connect Claude
+            Code to the hosted vault”).
+          </p>
+          <p className="text-micro text-subtle-foreground">Agents can also use the REST API below with the API key — nothing to install.</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-2">
+            <p className="text-meta font-medium">Connect Claude Code (MCP)</p>
+            <p className="text-meta text-muted-foreground">
+              Run this once in any terminal. It registers the local <code className="font-mono">design-vault</code> MCP server for all your Claude Code projects
+              (user scope). The MCP server reads the database directly, so the web app does not need to be running.
+            </p>
+            <CodeBlock label="MCP command" code={`claude mcp add design-vault --scope user -- node "${dir}/mcp/start.mjs"`} />
+            <p className="text-micro text-subtle-foreground">Then restart Claude Code and run /mcp to confirm “design-vault” is connected.</p>
+          </div>
 
-      <div className="flex flex-col gap-2">
-        <p className="text-meta font-medium">Install the Claude Code skill</p>
-        <p className="text-meta text-muted-foreground">Copies the design-reference workflow skill into your personal skills folder so every project can use it.</p>
-        <CodeBlock label="skill install command" code={`npm --prefix "${dir}" run skill:install`} />
-      </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-meta font-medium">Install the Claude Code skill</p>
+            <p className="text-meta text-muted-foreground">Copies the design-reference workflow skill into your personal skills folder so every project can use it.</p>
+            <CodeBlock label="skill install command" code={`npm --prefix "${dir}" run skill:install`} />
+          </div>
+        </>
+      )}
 
       <div className="flex flex-col gap-2">
         <p className="text-meta font-medium">REST API</p>

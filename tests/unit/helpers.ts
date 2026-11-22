@@ -11,11 +11,20 @@ import { createReference } from "@/server/repositories/references";
 export function createTempVault() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "design-vault-test-"));
   process.env.DESIGN_VAULT_DATA_DIR = dir;
+  // `npm run test:libsql` runs the same suite on the libSQL engine used for
+  // hosted (Turso) vaults, via a local libSQL file.
+  if (process.env.DV_TEST_ENGINE === "libsql") {
+    process.env.TURSO_DATABASE_URL = `file:${path.join(dir, "vault-libsql.db").replace(/\\/g, "/")}`;
+  }
   return {
     dir,
     cleanup() {
       closeDb();
-      fs.rmSync(dir, { recursive: true, force: true });
+      try {
+        fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+      } catch {
+        // Windows may keep the libSQL file locked briefly after closing; it's a temp folder.
+      }
     },
   };
 }
