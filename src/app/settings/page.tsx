@@ -34,7 +34,7 @@ export default async function SettingsPage() {
   const h = await headers();
   const [terms, apiKey, stats, usage] = await Promise.all([listTerms(), getApiKey(), getLibraryStats(), getStorage().usage()]);
   const config = getConfig();
-  const hosted = Boolean(config.databaseUrl || config.blobToken);
+  const hosted = Boolean(config.databaseUrl || config.blobEnabled);
   const host = h.get("host") ?? "127.0.0.1:3000";
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${host}`;
 

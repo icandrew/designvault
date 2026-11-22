@@ -31,7 +31,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const store = await cookies();
   const theme = asTheme(store.get(THEME_COOKIE)?.value);
   const sidebarCollapsed = store.get(SIDEBAR_COOKIE)?.value === "collapsed";
-  const { directUploads, password } = getConfig();
+  const { directUploads, blobAuth, password } = getConfig();
   const h = await headers();
   // The login page renders without the app shell (and without reading the vault).
   const bare = h.get("x-dv-bare") === "1";
@@ -45,6 +45,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${theme === "dark" ? "dark" : ""} h-full antialiased`}
       data-theme-pref={theme}
       data-uploads={directUploads ? "direct" : "server"}
+      data-blob-auth={blobAuth ?? undefined}
       suppressHydrationWarning
     >
       <head>

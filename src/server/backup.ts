@@ -29,8 +29,8 @@ export async function exportLibrary() {
  * stored image files, written to `<dataDir>/../backups/<timestamp>/` by default.
  */
 export async function createBackup(targetRoot?: string) {
-  const { dataDir, storageDir, databaseUrl, blobToken } = getConfig();
-  if (databaseUrl || blobToken) {
+  const { dataDir, storageDir, databaseUrl, blobEnabled } = getConfig();
+  if (databaseUrl || blobEnabled) {
     throw new Error("npm run backup copies a local vault. Hosted vaults are backed up by Turso (database) — see docs/DEPLOY-VERCEL.md.");
   }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

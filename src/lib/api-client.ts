@@ -69,7 +69,9 @@ function newUploadId() {
  * limit), then ask the app to validate the staged file.
  */
 async function directUpload(file: File, video: VideoPoster | null, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<UploadResult> {
-  const { upload } = await import("@vercel/blob/client");
+  // Stores connected via Vercel's built-in identity use presigned upload URLs; token stores use client tokens.
+  const { upload: tokenUpload, uploadPresigned } = await import("@vercel/blob/client");
+  const upload = document.documentElement.dataset.blobAuth === "identity" ? uploadPresigned : tokenUpload;
   const uploadId = newUploadId();
   const options = { access: "private" as const, handleUploadUrl: "/api/app/blob-upload", abortSignal: signal };
   try {

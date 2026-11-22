@@ -56,7 +56,7 @@ Click **Deploy**. The first deploy may finish before storage is connected. That'
 2. Give it a name (e.g. `design-vault-files`). If asked for access, choose **Private**.
 3. Connect it to your project for all environments.
 
-This adds `BLOB_READ_WRITE_TOKEN` to your project automatically.
+This adds either `BLOB_STORE_ID` (newer private stores, which connect through Vercel's built-in identity) or `BLOB_READ_WRITE_TOKEN` to your project. Design Vault works with both.
 
 ## Step 4 — Add the Turso database
 
@@ -155,6 +155,6 @@ You sign in with **Owner sign in** at the bottom of the sidebar (or the **Sign i
 | --- | --- |
 | "One more step" page | `DESIGN_VAULT_PASSWORD` isn't set. Add it (step 2) and redeploy. |
 | "Something went wrong on the server" on every page | The database isn't connected. Check that `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` exist (step 4), then redeploy. The build log (Deployments → your deploy → Building) shows the migration step. |
-| Uploads fail | Check that `BLOB_READ_WRITE_TOKEN` exists (step 3) and redeploy. |
+| Uploads fail | Check that `BLOB_STORE_ID` or `BLOB_READ_WRITE_TOKEN` exists (step 3), that the store is connected to all environments, and redeploy. |
 | Images don't load | Make sure you're signed in. Files are private and only reachable through the app. |
 | "That password isn't right" repeatedly | After 8 attempts, sign-in pauses for a few minutes. Check the value in Vercel. |

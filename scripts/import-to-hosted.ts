@@ -4,10 +4,12 @@
  *
  *   npm run hosted:import -- .env.hosted
  *
- * The env file must contain TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and
- * BLOB_READ_WRITE_TOKEN (copy them from Vercel → your project → Settings →
- * Environment Variables). Safe to run more than once: records and files that
- * already exist in the hosted vault are skipped. Your local vault is only read.
+ * The env file must contain TURSO_DATABASE_URL and TURSO_AUTH_TOKEN, plus Blob
+ * access: either BLOB_READ_WRITE_TOKEN (classic stores), or BLOB_STORE_ID and
+ * VERCEL_OIDC_TOKEN for stores connected via Vercel's built-in identity (get
+ * both with `npx vercel env pull .env.hosted`; the identity token lasts ~12 h).
+ * Safe to run more than once: records and files that already exist in the
+ * hosted vault are skipped. Your local vault is only read.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -21,8 +23,24 @@ async function main() {
     if (!fs.existsSync(envFile)) throw new Error(`Env file not found: ${envFile}`);
     process.loadEnvFile(envFile);
   }
-  for (const name of ["TURSO_DATABASE_URL", "BLOB_READ_WRITE_TOKEN"]) {
-    if (!process.env[name]) throw new Error(`${name} is missing. Put it in an env file and pass its path, e.g. npm run hosted:import -- .env.hosted`);
+  if (!process.env.TURSO_DATABASE_URL) {
+    throw new Error("TURSO_DATABASE_URL is missing. Put it in an env file and pass its path, e.g. npm run hosted:import -- .env.hosted");
+  }
+  const rawToken = process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
+  const blobToken = rawToken.startsWith("vercel_blob_rw_") ? rawToken : null;
+  if (rawToken && !blobToken) {
+    console.warn("Note: BLOB_READ_WRITE_TOKEN isn't a Blob read-write token (they start with vercel_blob_rw_), so it's ignored.");
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+  }
+  if (!blobToken && !(process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN)) {
+    throw new Error(
+      [
+        "No way to reach your Blob storage yet. Either:",
+        "  • run `npx vercel link` and then `npx vercel env pull .env.hosted` — it fills in BLOB_STORE_ID and VERCEL_OIDC_TOKEN (valid ~12 hours), or",
+        "  • in Vercel → Storage → your Blob store → Settings, create/restore a read-write token and put it in .env.hosted as BLOB_READ_WRITE_TOKEN.",
+        "Records already copied stay in place; run this again afterwards to upload the files.",
+      ].join("\n"),
+    );
   }
 
   // Local vault (read-only). Resolve the local paths before hosted settings take effect.
@@ -91,7 +109,7 @@ async function main() {
   await insert("collection_references", all(`select * from collection_references`));
 
   console.log("Uploading files…");
-  const blob = new BlobStorageDriver(process.env.BLOB_READ_WRITE_TOKEN!);
+  const blob = new BlobStorageDriver(blobToken);
   const keys = images.flatMap((i) => [i.original_key, i.preview_key, i.thumb_key]).map(String);
   let uploaded = 0;
   let skipped = 0;

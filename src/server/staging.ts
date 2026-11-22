@@ -81,12 +81,17 @@ class LocalStagingStore implements StagingStore {
 }
 
 class BlobStagingStore implements StagingStore {
-  constructor(private readonly token: string) {}
+  constructor(private readonly token: string | null = null) {}
+
+  /** Read-write token when available; otherwise the SDK uses BLOB_STORE_ID + Vercel's OIDC identity. */
+  private auth() {
+    return this.token ? { token: this.token } : {};
+  }
   async write(id: string, suffix: Suffix, data: Buffer) {
     const { put } = await import("@vercel/blob");
     await put(stagingPathname(id, suffix), data, {
       access: "private",
-      token: this.token,
+      ...this.auth(),
       addRandomSuffix: false,
       allowOverwrite: true,
       multipart: data.length > 20 * 1024 * 1024,
@@ -95,7 +100,7 @@ class BlobStagingStore implements StagingStore {
   async read(id: string, suffix: Suffix) {
     const { get } = await import("@vercel/blob");
     try {
-      const result = await get(stagingPathname(id, suffix), { access: "private", token: this.token, useCache: false });
+      const result = await get(stagingPathname(id, suffix), { access: "private", ...this.auth(), useCache: false });
       return result?.stream ? Buffer.from(await new Response(result.stream).arrayBuffer()) : null;
     } catch (error) {
       if (isBlobNotFound(error)) return null;
@@ -104,14 +109,14 @@ class BlobStagingStore implements StagingStore {
   }
   async remove(id: string) {
     const { del } = await import("@vercel/blob");
-    await del(SUFFIXES.map((s) => stagingPathname(id, s)), { token: this.token }).catch(() => undefined);
+    await del(SUFFIXES.map((s) => stagingPathname(id, s)), { ...this.auth() }).catch(() => undefined);
   }
   async cleanup() {
     const { list, del } = await import("@vercel/blob");
     try {
-      const page = await list({ prefix: "staging/", token: this.token, limit: 1000 });
+      const page = await list({ prefix: "staging/", ...this.auth(), limit: 1000 });
       const stale = page.blobs.filter((b) => Date.now() - new Date(b.uploadedAt).getTime() > MAX_AGE_MS).map((b) => b.pathname);
-      if (stale.length) await del(stale, { token: this.token });
+      if (stale.length) await del(stale, { ...this.auth() });
     } catch {
       // ignore
     }
@@ -119,13 +124,13 @@ class BlobStagingStore implements StagingStore {
 }
 
 function store(): StagingStore {
-  const { blobToken } = getConfig();
-  return blobToken ? new BlobStagingStore(blobToken) : new LocalStagingStore();
+  const { blobToken, blobEnabled } = getConfig();
+  return blobEnabled ? new BlobStagingStore(blobToken) : new LocalStagingStore();
 }
 
 function maybeCleanup(s: StagingStore) {
   // Listing remote storage on every upload would be wasteful; do it now and then.
-  if (getConfig().blobToken && Math.random() > 0.05) return;
+  if (getConfig().blobEnabled && Math.random() > 0.05) return;
   void s.cleanup();
 }
 

@@ -68,8 +68,9 @@ function missingHostedSettings() {
   if (!has("TURSO_AUTH_TOKEN", "DESIGN_VAULT_DATABASE_TOKEN")) {
     missing.push({ what: "Database access token (Turso)", vars: "TURSO_AUTH_TOKEN", how: "Added automatically when Turso is connected; or create a token in the Turso dashboard." });
   }
-  if (!has("BLOB_READ_WRITE_TOKEN")) {
-    missing.push({ what: "File storage (Vercel Blob)", vars: "BLOB_READ_WRITE_TOKEN", how: "Storage tab → Create → Blob (Private) → connect it to this project." });
+  // Either a classic read-write token or a store connected via Vercel's built-in identity.
+  if (!has("BLOB_READ_WRITE_TOKEN", "BLOB_STORE_ID")) {
+    missing.push({ what: "File storage (Vercel Blob)", vars: "BLOB_STORE_ID or BLOB_READ_WRITE_TOKEN", how: "Storage tab → Create → Blob (Private) → connect it to this project (all environments)." });
   }
   return missing;
 }

@@ -123,10 +123,10 @@ let driver: StorageDriver | null = null;
 let driverRoot: string | null = null;
 
 export function getStorage(): StorageDriver {
-  const { storageDir, blobToken } = getConfig();
-  const root = blobToken ? `blob:${blobToken.slice(0, 24)}` : storageDir;
+  const { storageDir, blobToken, blobStoreId, blobEnabled } = getConfig();
+  const root = blobEnabled ? `blob:${(blobToken ?? blobStoreId ?? "").slice(0, 24)}` : storageDir;
   if (!driver || driverRoot !== root) {
-    driver = blobToken ? new BlobStorageDriver(blobToken) : new LocalStorageDriver(storageDir);
+    driver = blobEnabled ? new BlobStorageDriver(blobToken) : new LocalStorageDriver(storageDir);
     driverRoot = root;
   }
   return driver;
@@ -140,7 +140,12 @@ const CONTENT_TYPES: Record<string, string> = { png: "image/png", jpg: "image/jp
  * authenticated image route — never via a public URL.
  */
 export class BlobStorageDriver implements StorageDriver {
-  constructor(private readonly token: string) {}
+  constructor(private readonly token: string | null = null) {}
+
+  /** Read-write token when available; otherwise the SDK uses BLOB_STORE_ID + Vercel's OIDC identity. */
+  private auth() {
+    return this.token ? { token: this.token } : {};
+  }
 
   private sdk() {
     return import("@vercel/blob");
@@ -151,7 +156,7 @@ export class BlobStorageDriver implements StorageDriver {
     const { put } = await this.sdk();
     await put(key, data, {
       access: "private",
-      token: this.token,
+      ...this.auth(),
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: CONTENT_TYPES[key.split(".").pop()!],
@@ -164,7 +169,7 @@ export class BlobStorageDriver implements StorageDriver {
     const { get } = await this.sdk();
     const result = await get(key, {
       access: "private",
-      token: this.token,
+      ...this.auth(),
       headers: range ? { Range: `bytes=${range.start}-${range.end}` } : undefined,
     }).catch((error: unknown) => {
       if (isBlobNotFound(error)) return null;
@@ -190,7 +195,7 @@ export class BlobStorageDriver implements StorageDriver {
   async delete(key: string) {
     assertValidKey(key);
     const { del } = await this.sdk();
-    await del(key, { token: this.token }).catch((error: unknown) => {
+    await del(key, { ...this.auth() }).catch((error: unknown) => {
       if (!isBlobNotFound(error)) throw error;
     });
   }
@@ -199,7 +204,7 @@ export class BlobStorageDriver implements StorageDriver {
     assertValidKey(key);
     const { head } = await this.sdk();
     try {
-      return (await head(key, { token: this.token })).size;
+      return (await head(key, { ...this.auth() })).size;
     } catch (error) {
       if (isBlobNotFound(error)) return null;
       throw error;
@@ -217,7 +222,7 @@ export class BlobStorageDriver implements StorageDriver {
     for (const prefix of ["originals/", "previews/", "thumbs/"]) {
       let cursor: string | undefined;
       do {
-        const page = await list({ prefix, cursor, token: this.token, limit: 1000 });
+        const page = await list({ prefix, cursor, ...this.auth(), limit: 1000 });
         for (const b of page.blobs) {
           bytes += b.size;
           files += 1;
