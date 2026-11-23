@@ -33,9 +33,10 @@ async function main() {
     delete process.env.BLOB_READ_WRITE_TOKEN;
   }
   if (!blobToken && !(process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN)) {
+    const status = (name: string) => `${name}: ${process.env[name]?.trim() ? "present" : "missing"}`;
     throw new Error(
       [
-        "No way to reach your Blob storage yet. Either:",
+        `No way to reach your Blob storage yet (${status("BLOB_STORE_ID")}, ${status("VERCEL_OIDC_TOKEN")}). Either:`,
         "  • run `npx vercel link` and then `npx vercel env pull .env.hosted` — it fills in BLOB_STORE_ID and VERCEL_OIDC_TOKEN (valid ~12 hours), or",
         "  • in Vercel → Storage → your Blob store → Settings, create/restore a read-write token and put it in .env.hosted as BLOB_READ_WRITE_TOKEN.",
         "Records already copied stay in place; run this again afterwards to upload the files.",

@@ -235,5 +235,11 @@ export class BlobStorageDriver implements StorageDriver {
 }
 
 export function isBlobNotFound(error: unknown) {
-  return error instanceof Error && (error.name === "BlobNotFoundError" || /not.?found/i.test(error.message));
+  if (!(error instanceof Error)) return false;
+  // The SDK's BlobNotFoundError doesn't set `name`, so also check the class and wording.
+  return (
+    error.name === "BlobNotFoundError" ||
+    error.constructor?.name === "BlobNotFoundError" ||
+    /not.?found|does not exist/i.test(error.message)
+  );
 }
