@@ -263,6 +263,49 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
   const toolbarVisible = fullscreen || focused || (touchMode ? scrolledUp : hovered);
   const kind = current.mediaType === "video" ? "video" : "image";
 
+  const toolbar = (
+    <div
+      role="toolbar"
+      aria-label="Viewing controls"
+      data-visible={toolbarVisible || undefined}
+      className={cn(
+        // Frosted glass: dark translucent tint, strong blur, hairline highlight and soft depth.
+        "relative flex items-center gap-0.5 overflow-hidden rounded-full p-1.5 text-white",
+      touchMode ? "mb-0" : "mt-3 mr-3",
+        "bg-neutral-950/45 shadow-[0_10px_40px_-8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.05)] ring-1 ring-white/15 backdrop-blur-2xl backdrop-saturate-150",
+        "before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-white/18 before:via-white/5 before:to-transparent",
+        "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        toolbarVisible
+        ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
+        : cn("pointer-events-none scale-95 opacity-0", touchMode ? "translate-y-4" : "-translate-y-2"),
+      )}
+    >
+      {images.length > 1 && !touchMode && (
+        <span className="relative px-2.5 text-micro font-medium tabular-nums text-white/70" aria-live="polite">
+          {active + 1} / {images.length}
+        </span>
+      )}
+      <ToolButton label="Zoom out (−)" onClick={() => zoom(-1)} disabled={scale <= ZOOM_STEPS[0] + 0.01}>
+        <ZoomOut className="size-4" />
+      </ToolButton>
+      {!touchMode && <span className="relative w-10 text-center text-micro font-medium tabular-nums text-white/75">{Math.round(scale * 100)}%</span>}
+      <ToolButton label="Zoom in (+)" onClick={() => zoom(1)} disabled={scale >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01}>
+        <ZoomIn className="size-4" />
+      </ToolButton>
+      <ToolButton label="Fit to width (0)" onClick={() => setMode({ kind: "width" })} pressed={mode.kind === "width"}>
+        <MoveHorizontal className="size-4" />
+      </ToolButton>
+      <ToolButton label="Original size (1)" onClick={() => setMode({ kind: "zoom", scale: 1 })} pressed={zoomed && mode.scale === 1}>
+        <Scan className="size-4" />
+      </ToolButton>
+      <ToolButton label={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"} onClick={toggleFullscreen}>
+        {fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+      </ToolButton>
+      <ToolButton label={images.length > 1 ? `Download ${kind} ${active + 1}` : `Download original ${kind}`} onClick={download}>
+        <Download className="size-4" />
+      </ToolButton>
+    </div>
+  );
   return (
     <div
       ref={rootRef}
@@ -276,47 +319,10 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
       }}
     >
-      {/* Floating toolbar: takes no layout space and stays in view while scrolling. */}
-      <div className="pointer-events-none sticky top-[4.25rem] z-20 flex h-0 items-start justify-end">
-        <div
-          role="toolbar"
-          aria-label="Viewing controls"
-          data-visible={toolbarVisible || undefined}
-          className={cn(
-            // Frosted glass: dark translucent tint, strong blur, hairline highlight and soft depth.
-            "relative mt-3 mr-3 flex items-center gap-0.5 overflow-hidden rounded-full p-1.5 text-white",
-            "bg-neutral-950/45 shadow-[0_10px_40px_-8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.05)] ring-1 ring-white/15 backdrop-blur-2xl backdrop-saturate-150",
-            "before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-white/18 before:via-white/5 before:to-transparent",
-            "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-            toolbarVisible ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-2 scale-95 opacity-0",
-          )}
-        >
-          {images.length > 1 && (
-            <span className="relative hidden px-2.5 text-micro font-medium tabular-nums text-white/70 sm:inline" aria-live="polite">
-              {active + 1} / {images.length}
-            </span>
-          )}
-          <ToolButton label="Zoom out (−)" onClick={() => zoom(-1)} disabled={scale <= ZOOM_STEPS[0] + 0.01}>
-            <ZoomOut className="size-4" />
-          </ToolButton>
-          <span className="relative hidden w-10 text-center text-micro font-medium tabular-nums text-white/75 sm:inline">{Math.round(scale * 100)}%</span>
-          <ToolButton label="Zoom in (+)" onClick={() => zoom(1)} disabled={scale >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01}>
-            <ZoomIn className="size-4" />
-          </ToolButton>
-          <ToolButton label="Fit to width (0)" onClick={() => setMode({ kind: "width" })} pressed={mode.kind === "width"}>
-            <MoveHorizontal className="size-4" />
-          </ToolButton>
-          <ToolButton label="Original size (1)" onClick={() => setMode({ kind: "zoom", scale: 1 })} pressed={zoomed && mode.scale === 1}>
-            <Scan className="size-4" />
-          </ToolButton>
-          <ToolButton label={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"} onClick={toggleFullscreen}>
-            {fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </ToolButton>
-          <ToolButton label={images.length > 1 ? `Download ${kind} ${active + 1}` : `Download original ${kind}`} onClick={download}>
-            <Download className="size-4" />
-          </ToolButton>
-        </div>
-      </div>
+      {/* Desktop: floats at the top-right of the images; takes no layout space and stays in view while scrolling. */}
+      {!touchMode && (
+        <div className="pointer-events-none sticky top-[4.25rem] z-20 flex h-0 items-start justify-end">{toolbar}</div>
+      )}
 
       {/* The stack itself uses the page scroll; only zoomed-in images scroll sideways. */}
       <div ref={stackRef} className={cn("flex flex-col gap-1", zoomed && "scrollbar-thin overflow-x-auto")}>
@@ -331,6 +337,11 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
           />
         ))}
       </div>
+
+      {/* Mobile: icon-only bar, centred and stuck to the bottom of the screen while the images are in view. */}
+      {touchMode && (
+        <div className="pointer-events-none sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 flex h-0 items-end justify-center">{toolbar}</div>
+      )}
     </div>
   );
 }

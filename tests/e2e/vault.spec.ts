@@ -114,10 +114,23 @@ test("view controls appear on hover (desktop) and hide while scrolling down (mob
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(toolbar).toHaveAttribute("data-visible", "true");
+  // Icon-only, centred at the bottom of the screen and stuck there while scrolling.
+  await expect(toolbar.getByText("%")).toHaveCount(0);
+  const placement = async () => {
+    const box = (await toolbar.boundingBox())!;
+    return { centreOffset: Math.abs(box.x + box.width / 2 - 390 / 2), gapToBottom: 844 - (box.y + box.height) };
+  };
+  let p = await placement();
+  expect(p.centreOffset).toBeLessThan(4);
+  expect(p.gapToBottom).toBeGreaterThan(4);
+  expect(p.gapToBottom).toBeLessThan(40);
   await page.mouse.wheel(0, 900);
   await expect(toolbar).not.toHaveAttribute("data-visible");
   await page.mouse.wheel(0, -300);
   await expect(toolbar).toHaveAttribute("data-visible", "true");
+  p = await placement();
+  expect(p.centreOffset).toBeLessThan(4);
+  expect(p.gapToBottom).toBeLessThan(40);
 });
 
 test("edits a reference", async ({ page }) => {
