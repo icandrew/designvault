@@ -84,6 +84,8 @@ test("shows every screenshot in one continuous scroll with working view controls
   // Fit to width never stretches: each image is at most its real width and keeps its aspect ratio.
   const sizes = await gallery.locator("figure").evaluateAll((els) => els.map((e) => ({ w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })));
   expect(sizes[1].h / sizes[1].w).toBeCloseTo(1800 / 390, 1);
+  // Controls are hidden until the pointer is over the images.
+  await gallery.locator("figure").first().hover();
   await gallery.getByRole("button", { name: /Zoom in/ }).click();
   await expect(fit).toHaveAttribute("aria-pressed", "false");
   await gallery.getByRole("button", { name: /Original size/ }).click();
@@ -96,6 +98,26 @@ test("shows every screenshot in one continuous scroll with working view controls
   // The details sidebar stays in view (sticky) while the images scroll past.
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
   await expect(page.getByRole("heading", { level: 1, name: "Conditioning shampoo product page" })).toBeInViewport();
+});
+
+test("view controls appear on hover (desktop) and hide while scrolling down (mobile)", async ({ page }) => {
+  await page.goto(`/references/${refId}`);
+  const toolbar = page.getByRole("toolbar", { name: "Viewing controls" });
+  // Desktop: hidden until the pointer is over the images.
+  await expect(toolbar).not.toHaveAttribute("data-visible");
+  await page.getByRole("region", { name: "Screenshots" }).locator("figure").first().hover();
+  await expect(toolbar).toHaveAttribute("data-visible", "true");
+  await page.getByRole("heading", { level: 1 }).hover();
+  await expect(toolbar).not.toHaveAttribute("data-visible");
+
+  // Mobile: shown at the top, hidden while scrolling down, shown again on scroll up.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(toolbar).toHaveAttribute("data-visible", "true");
+  await page.mouse.wheel(0, 900);
+  await expect(toolbar).not.toHaveAttribute("data-visible");
+  await page.mouse.wheel(0, -300);
+  await expect(toolbar).toHaveAttribute("data-visible", "true");
 });
 
 test("edits a reference", async ({ page }) => {

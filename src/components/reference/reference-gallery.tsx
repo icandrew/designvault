@@ -46,8 +46,8 @@ function ToolButton({
           aria-label={label}
           aria-pressed={pressed}
           className={cn(
-            "grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-40 sm:size-8",
-            pressed && "bg-accent text-foreground",
+            "relative grid size-10 place-items-center rounded-full text-white/80 transition-[background-color,color,transform] duration-200 hover:bg-white/15 hover:text-white active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white/70 disabled:pointer-events-none disabled:opacity-35 sm:size-9",
+            pressed && "bg-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]",
           )}
         >
           {children}
@@ -129,6 +129,12 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
   const [columnWidth, setColumnWidth] = useState(0);
   const [active, setActive] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
+  // Toolbar visibility. Mouse/trackpad: shown while hovering the images (or
+  // focusing a control). Phones/touch: hidden while scrolling down, shown on scroll up.
+  const [touchMode, setTouchMode] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [scrolledUp, setScrolledUp] = useState(true);
   const rootRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +170,31 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
     stack.querySelectorAll("figure[data-index]").forEach((f) => io.observe(f));
     return () => io.disconnect();
   }, [images.length]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(hover: none), (pointer: coarse), (max-width: 767px)");
+    const update = () => setTouchMode(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!touchMode) return;
+    let last = window.scrollY;
+    // Cheap per-event check; React skips re-rendering when the value doesn't change.
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 80) setScrolledUp(true);
+      // Small dead zone so tiny jitters (e.g. iOS bounce) don't flicker the toolbar.
+      else if (y < last - 6) setScrolledUp(true);
+      else if (y > last + 6) setScrolledUp(false);
+      else return;
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [touchMode]);
 
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current);
@@ -229,6 +260,7 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
   }
 
   const zoomed = mode.kind === "zoom";
+  const toolbarVisible = fullscreen || focused || (touchMode ? scrolledUp : hovered);
   const kind = current.mediaType === "video" ? "video" : "image";
 
   return (
@@ -237,23 +269,37 @@ export function ReferenceGallery({ images, title }: { images: ImageDTO[]; title:
       role="region"
       aria-label="Screenshots"
       className={cn("relative w-full min-w-0", fullscreen && "overflow-y-auto bg-background p-4 sm:p-8")}
+      onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(true)}
+      onPointerLeave={(e) => e.pointerType === "mouse" && setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
     >
       {/* Floating toolbar: takes no layout space and stays in view while scrolling. */}
-      <div className="pointer-events-none sticky top-[4.25rem] z-20 flex h-0 justify-end">
+      <div className="pointer-events-none sticky top-[4.25rem] z-20 flex h-0 items-start justify-end">
         <div
           role="toolbar"
           aria-label="Viewing controls"
-          className="pointer-events-auto mt-3 mr-3 flex items-center gap-0.5 rounded-full bg-background/95 p-1 shadow-md ring-1 ring-border backdrop-blur-md supports-[backdrop-filter]:bg-background/85"
+          data-visible={toolbarVisible || undefined}
+          className={cn(
+            // Frosted glass: dark translucent tint, strong blur, hairline highlight and soft depth.
+            "relative mt-3 mr-3 flex items-center gap-0.5 overflow-hidden rounded-full p-1.5 text-white",
+            "bg-neutral-950/45 shadow-[0_10px_40px_-8px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-1px_0_rgba(255,255,255,0.05)] ring-1 ring-white/15 backdrop-blur-2xl backdrop-saturate-150",
+            "before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-white/18 before:via-white/5 before:to-transparent",
+            "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+            toolbarVisible ? "pointer-events-auto translate-y-0 scale-100 opacity-100" : "pointer-events-none -translate-y-2 scale-95 opacity-0",
+          )}
         >
           {images.length > 1 && (
-            <span className="hidden px-2 text-micro tabular-nums text-subtle-foreground sm:inline" aria-live="polite">
+            <span className="relative hidden px-2.5 text-micro font-medium tabular-nums text-white/70 sm:inline" aria-live="polite">
               {active + 1} / {images.length}
             </span>
           )}
           <ToolButton label="Zoom out (−)" onClick={() => zoom(-1)} disabled={scale <= ZOOM_STEPS[0] + 0.01}>
             <ZoomOut className="size-4" />
           </ToolButton>
-          <span className="hidden w-10 text-center text-micro tabular-nums text-muted-foreground sm:inline">{Math.round(scale * 100)}%</span>
+          <span className="relative hidden w-10 text-center text-micro font-medium tabular-nums text-white/75 sm:inline">{Math.round(scale * 100)}%</span>
           <ToolButton label="Zoom in (+)" onClick={() => zoom(1)} disabled={scale >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.01}>
             <ZoomIn className="size-4" />
           </ToolButton>
