@@ -73,14 +73,29 @@ test("uploads a screenshot with metadata and persists it", async ({ page }) => {
   await expect(page.getByText("Gallery left, purchase column right")).toBeVisible();
 });
 
-test("image viewer zooms, fits and switches screenshots", async ({ page }) => {
+test("shows every screenshot in one continuous scroll with working view controls", async ({ page }) => {
   await page.goto(`/references/${refId}`);
-  const viewer = page.getByRole("region", { name: "Screenshot viewer" });
-  await viewer.getByRole("button", { name: /Zoom in/ }).click();
-  await expect(viewer.getByText(/^(75|100|150|200)%$/)).toBeVisible();
-  await viewer.getByRole("button", { name: /Fit to screen/ }).click();
-  await viewer.getByRole("tab", { name: /Mobile/ }).click();
-  await expect(viewer.getByText(/Mobile · Unknown · 390×1800/)).toBeVisible();
+  const gallery = page.getByRole("region", { name: "Screenshots" });
+  // All screenshots are stacked in the page (no carousel, no previous/next).
+  await expect(gallery.getByRole("img")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /Next screenshot/ })).toHaveCount(0);
+  const fit = gallery.getByRole("button", { name: /Fit to width/ });
+  await expect(fit).toHaveAttribute("aria-pressed", "true");
+  // Fit to width never stretches: each image is at most its real width and keeps its aspect ratio.
+  const sizes = await gallery.locator("figure").evaluateAll((els) => els.map((e) => ({ w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height })));
+  expect(sizes[1].h / sizes[1].w).toBeCloseTo(1800 / 390, 1);
+  await gallery.getByRole("button", { name: /Zoom in/ }).click();
+  await expect(fit).toHaveAttribute("aria-pressed", "false");
+  await gallery.getByRole("button", { name: /Original size/ }).click();
+  await expect(gallery.getByText(/^100%$/)).toBeVisible();
+  await fit.click();
+  await expect(fit).toHaveAttribute("aria-pressed", "true");
+  // Scrolling to the second screenshot updates the counter and the download target.
+  await gallery.locator("figure").nth(1).scrollIntoViewIfNeeded();
+  await expect(gallery.getByRole("button", { name: "Download image 2" })).toBeVisible();
+  // The details sidebar stays in view (sticky) while the images scroll past.
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+  await expect(page.getByRole("heading", { level: 1, name: "Conditioning shampoo product page" })).toBeInViewport();
 });
 
 test("edits a reference", async ({ page }) => {
@@ -228,7 +243,7 @@ test("uploads an MP4, uses it as cover, autoplays it in the gallery and switches
   const id = page.url().split("/").pop()!;
 
   // Detail viewer plays the video (streamed with HTTP Range requests).
-  const viewerVideo = page.getByRole("region", { name: "Screenshot viewer" }).locator("video");
+  const viewerVideo = page.getByRole("region", { name: "Screenshots" }).locator("video");
   await expect(viewerVideo).toBeVisible();
   await expect.poll(() => viewerVideo.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 10_000 }).toBeGreaterThan(0);
 
@@ -257,7 +272,7 @@ test("uploads an MP4, uses it as cover, autoplays it in the gallery and switches
 
 test("switches app theme without altering screenshots", async ({ page }) => {
   await page.goto(`/references/${refId}`);
-  const img = page.getByRole("region", { name: "Screenshot viewer" }).getByRole("img", { name: /screenshot 1/ });
+  const img = page.getByRole("region", { name: "Screenshots" }).getByRole("img", { name: /screenshot 1/ });
   await expect(img).toBeVisible();
   const srcBefore = await img.getAttribute("src");
   expect(srcBefore).toMatch(/\/api\/images\/img_\w+\/preview$/);

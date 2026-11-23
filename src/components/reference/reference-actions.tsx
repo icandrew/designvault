@@ -35,14 +35,14 @@ export function ReferenceActions({ reference: r }: { reference: ReferenceDetail 
   const canEdit = useCanEdit();
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-1.5">
       {canEdit && (
         <>
           <FavoriteButton id={r.id} initial={r.isFavorite} variant="plain" />
-          <Button variant="outline" onClick={() => setCollect(true)} className="h-9">
+          <Button variant="outline" onClick={() => setCollect(true)} className="h-9 min-w-0 flex-1 px-3">
             <FolderPlus /> Collect
           </Button>
-          <Button variant="outline" asChild className="h-9">
+          <Button variant="outline" asChild className="h-9 min-w-0 flex-1 px-3">
             <Link href={`/references/${r.id}/edit`}>
               <Pencil /> Edit
             </Link>
@@ -51,7 +51,7 @@ export function ReferenceActions({ reference: r }: { reference: ReferenceDetail 
       )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" className="size-9" aria-label="More actions">
+          <Button variant="outline" size="icon" className="size-9 shrink-0" aria-label="More actions">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>

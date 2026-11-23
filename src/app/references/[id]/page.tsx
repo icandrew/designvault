@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, ChevronLeft, ShieldCheck, Sparkles } from "lucide-react";
-import { PageContainer } from "@/components/app/page-header";
-import { ImageViewer } from "@/components/reference/image-viewer";
+import { DetailsDisclosure } from "@/components/reference/details-disclosure";
 import { ReferenceActions } from "@/components/reference/reference-actions";
+import { ReferenceGallery } from "@/components/reference/reference-gallery";
 import { ScreenshotImage } from "@/components/reference/screenshot-image";
 import { filtersToSearchParams, LABELS, type Filters } from "@/lib/domain";
-import type { TermRef } from "@/lib/types";
+import type { ReferenceDetail, TermRef } from "@/lib/types";
 import { formatDate } from "@/lib/api-client";
 import { findRelated, getReference } from "@/server/repositories/references";
 
@@ -16,30 +16,51 @@ export async function generateMetadata({ params }: PageProps<"/references/[id]">
   return { title: ref?.title ?? "Reference not found" };
 }
 
-function TermLinks({ terms, filterKey }: { terms: TermRef[]; filterKey: keyof Filters }) {
-  if (!terms.length) return <span className="text-subtle-foreground">—</span>;
+// ---------------------------------------------------------------- sidebar parts
+
+function Chip({ href, title, children }: { href: string; title?: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      title={title}
+      className="inline-flex h-6 items-center gap-1 rounded-full bg-accent/70 px-2.5 text-meta text-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function TermChips({ terms, filterKey }: { terms: TermRef[]; filterKey: keyof Filters }) {
   return (
     <ul className="flex flex-wrap gap-1.5">
       {terms.map((t) => (
         <li key={t.slug}>
-          <Link
-            href={`/?${filtersToSearchParams({ [filterKey]: [t.slug] } as Partial<Filters>)}`}
-            className="inline-flex h-6 items-center rounded-full border bg-background px-2.5 text-meta transition-colors hover:border-border-strong hover:bg-accent"
-          >
-            {t.name}
-          </Link>
+          <Chip href={`/?${filtersToSearchParams({ [filterKey]: [t.slug] } as Partial<Filters>)}`}>{t.name}</Chip>
         </li>
       ))}
     </ul>
   );
 }
 
-function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** One labelled field; renders nothing when empty so the sidebar stays light. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  if (children === null || children === undefined || children === false) return null;
   return (
-    <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 py-2.5 text-meta">
-      <dt className="text-subtle-foreground">{label}</dt>
-      <dd className="min-w-0 text-foreground">{children}</dd>
+    <div className="flex flex-col gap-1.5">
+      <dt className="text-micro text-subtle-foreground">{label}</dt>
+      <dd className="min-w-0 text-meta text-foreground">{children}</dd>
     </div>
+  );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  const items = (Array.isArray(children) ? children : [children]).filter(Boolean);
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-3.5 border-t pt-5 first:border-t-0 first:pt-0" aria-label={title}>
+      <h2 className="text-micro font-medium tracking-wide text-muted-foreground uppercase">{title}</h2>
+      <dl className="flex flex-col gap-3.5">{items}</dl>
+    </section>
   );
 }
 
@@ -47,157 +68,187 @@ function Note({ label, children, tone }: { label: string; children: string | nul
   if (!children) return null;
   return (
     <div className="flex flex-col gap-1">
-      <h4 className="flex items-center gap-1.5 text-micro font-medium uppercase text-subtle-foreground">
+      <h3 className="flex items-center gap-1.5 text-micro font-medium text-subtle-foreground">
         {tone === "observed" && <ShieldCheck className="size-3.5 text-success" />}
         {tone === "ai" && <Sparkles className="size-3.5 text-warning" />}
         {label}
-      </h4>
-      <p className="text-body whitespace-pre-line text-foreground">{children}</p>
+      </h3>
+      <p className="text-meta whitespace-pre-line text-foreground">{children}</p>
     </div>
   );
 }
+
+function ReferenceMetadata({ reference: ref }: { reference: ReferenceDetail }) {
+  const industries = [...(ref.industry ? [ref.industry] : []), ...ref.additionalIndustries];
+  const a = ref.analysis;
+  const curatorNotes = a && [a.interesting, a.typographyNotes, a.colorNotes, a.layoutNotes, a.interactionNotes, a.uxStrengths, a.limitations, a.usageIdeas].some(Boolean);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Group title="Classification">
+        {industries.length > 0 && <Field key="industry" label="Industry"><TermChips terms={industries} filterKey="industry" /></Field>}
+        {ref.pageType && <Field key="pageType" label="Page type"><TermChips terms={[ref.pageType]} filterKey="pageType" /></Field>}
+        {ref.visualStyles.length > 0 && <Field key="style" label="Visual style"><TermChips terms={ref.visualStyles} filterKey="visualStyle" /></Field>}
+        {ref.layouts.length > 0 && <Field key="layout" label="Layout"><TermChips terms={ref.layouts} filterKey="layout" /></Field>}
+        {ref.components.length > 0 && <Field key="components" label="Components"><TermChips terms={ref.components} filterKey="component" /></Field>}
+        {ref.interactions.length > 0 && (
+          <Field key="interaction" label="Interaction">
+            <ul className="flex flex-wrap gap-1.5">
+              {ref.interactions.map((i) => (
+                <li key={i.slug}>
+                  <Chip href={`/?interaction=${i.slug}`} title={i.verified ? "Verified: observed live or documented" : "Not verified"}>
+                    {i.verified && <ShieldCheck className="size-3 text-success" />}
+                    {i.name}
+                    {!i.verified && <span className="text-subtle-foreground">· unverified</span>}
+                  </Chip>
+                </li>
+              ))}
+            </ul>
+          </Field>
+        )}
+        {ref.tags.length > 0 && <Field key="tags" label="Tags"><TermChips terms={ref.tags} filterKey="tag" /></Field>}
+      </Group>
+
+      <Group title="Capture">
+        <Field key="captured" label="Captured">
+          {LABELS.screenshotType[ref.screenshotType]} · {LABELS.viewport[ref.capturedViewport]} · {LABELS.capturedTheme[ref.capturedTheme]} theme
+        </Field>
+        <Field key="dark" label="Dark mode support">{LABELS.darkMode[ref.supportsDarkMode]}</Field>
+        {ref.capturedAt && <Field key="capturedAt" label="Date captured">{ref.capturedAt}</Field>}
+        <Field key="count" label="Media">
+          {ref.images.length} {ref.images.length === 1 ? "item" : "items"}
+          {ref.videoCount > 0 && ` · ${ref.videoCount} ${ref.videoCount === 1 ? "video" : "videos"}`}
+        </Field>
+      </Group>
+
+      {ref.collections.length > 0 && (
+        <Group title="Collections">
+          <Field key="collections" label="In">
+            <ul className="flex flex-wrap gap-1.5">
+              {ref.collections.map((c) => (
+                <li key={c.id}>
+                  <Chip href={`/collections/${c.id}`}>{c.name}</Chip>
+                </li>
+              ))}
+            </ul>
+          </Field>
+        </Group>
+      )}
+
+      {(a?.observations || curatorNotes || a?.aiSuggestions) && (
+        <section className="flex flex-col gap-4 border-t pt-5" aria-labelledby="analysis-title">
+          <h2 id="analysis-title" className="text-micro font-medium tracking-wide text-muted-foreground uppercase">
+            Design analysis
+          </h2>
+          <Note label="Observed" tone="observed">
+            {a?.observations ?? null}
+          </Note>
+          {curatorNotes && (
+            <div className="flex flex-col gap-3.5 border-l-2 pl-3.5">
+              <p className="text-micro text-subtle-foreground">Curator notes — personal interpretation</p>
+              <Note label="Why it’s interesting">{a?.interesting ?? null}</Note>
+              <Note label="Typography">{a?.typographyNotes ?? null}</Note>
+              <Note label="Color">{a?.colorNotes ?? null}</Note>
+              <Note label="Layout">{a?.layoutNotes ?? null}</Note>
+              <Note label="Interaction">{a?.interactionNotes ?? null}</Note>
+              <Note label="UX strengths">{a?.uxStrengths ?? null}</Note>
+              <Note label="Limitations">{a?.limitations ?? null}</Note>
+              <Note label="How I might use this">{a?.usageIdeas ?? null}</Note>
+            </div>
+          )}
+          {a?.aiSuggestions && (
+            <div className="rounded-lg bg-warning/8 p-3">
+              <Note label={`AI suggestions · ${a.aiSuggestionsReviewed ? "reviewed" : "unreviewed"}`} tone="ai">
+                {a.aiSuggestions}
+              </Note>
+            </div>
+          )}
+        </section>
+      )}
+
+      <Group title="Details">
+        <Field key="added" label="Added">{formatDate(ref.createdAt)}</Field>
+        <Field key="updated" label="Updated">{formatDate(ref.updatedAt)}</Field>
+        <Field key="attribution" label="Attribution">{ref.attribution ?? (ref.siteName ? `Design by ${ref.siteName}` : "—")}</Field>
+        {ref.licenseNotes && <Field key="license" label="Usage notes">{ref.licenseNotes}</Field>}
+        <Field key="id" label="Reference ID">
+          <span className="font-mono text-micro text-muted-foreground">{ref.id}</span>
+        </Field>
+      </Group>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- page
 
 export default async function ReferencePage({ params }: PageProps<"/references/[id]">) {
   const { id } = await params;
   const ref = await getReference(id);
   if (!ref) notFound();
   const related = await findRelated(id, { limit: 8 });
-  const a = ref.analysis;
-  const curatorNotes = a && [a.interesting, a.typographyNotes, a.colorNotes, a.layoutNotes, a.interactionNotes, a.uxStrengths, a.limitations, a.usageIdeas].some(Boolean);
+  const source = ref.siteName ?? ref.sourceDomain;
 
   return (
-    <PageContainer className="max-w-[1680px]">
-      <nav className="mb-4" aria-label="Breadcrumb">
-        <Link href="/" className="inline-flex items-center gap-1 text-meta text-muted-foreground hover:text-foreground">
+    <div className="mx-auto w-full max-w-[1920px] px-4 pt-4 pb-16 sm:px-6 lg:px-8">
+      {/* Minimal contextual navigation; the global header and sidebar stay as they are. */}
+      <nav className="mb-4 flex min-w-0 items-center gap-2 text-meta" aria-label="Breadcrumb">
+        <Link href="/" className="inline-flex shrink-0 items-center gap-1 rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
           <ChevronLeft className="size-4" /> All references
         </Link>
+        {source && (
+          <>
+            <span className="text-subtle-foreground" aria-hidden>
+              /
+            </span>
+            <span className="truncate text-subtle-foreground">{source}</span>
+          </>
+        )}
       </nav>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0">
-          <ImageViewer images={ref.images} title={ref.title} />
-        </div>
-
-        <aside className="flex min-w-0 flex-col gap-6" aria-label="Reference details">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-micro">
-              <span className="rounded bg-accent px-1.5 py-0.5 font-medium text-muted-foreground">{LABELS.status[ref.status]}</span>
-              {ref.isSample && <span className="rounded bg-warning/15 px-1.5 py-0.5 font-medium">Sample data</span>}
-              <span className="font-mono text-subtle-foreground">{ref.id}</span>
-            </div>
-            <h1 className="text-display font-semibold text-balance">{ref.title}</h1>
-            <p className="text-body text-muted-foreground">
-              {ref.siteName ?? ref.sourceDomain ?? "Unknown source"}
-              {ref.sourceUrl && (
-                <>
-                  {" · "}
-                  <a href={ref.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground underline-offset-4 hover:underline">
-                    {ref.sourceDomain ?? "Visit source"} <ArrowUpRight className="size-3.5" />
-                  </a>
-                </>
-              )}
-            </p>
-            {ref.description && <p className="text-body text-foreground">{ref.description}</p>}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_clamp(272px,24%,360px)] lg:gap-10 xl:gap-14">
+        {/* Details: right on desktop (sticky, never scrolls away); above the images on smaller screens. */}
+        <aside className="min-w-0 lg:col-start-2 lg:row-start-1" aria-label="Reference details">
+          <div className="scrollbar-thin flex flex-col gap-5 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-2 lg:pb-8">
+            <header className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-center gap-2 text-micro">
+                <span className="rounded-full bg-accent px-2 py-0.5 font-medium text-muted-foreground">{LABELS.status[ref.status]}</span>
+                {ref.isSample && <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium">Sample data</span>}
+              </div>
+              <h1 className="text-heading font-semibold tracking-tight text-balance sm:text-display lg:text-heading xl:text-display">{ref.title}</h1>
+              <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-muted-foreground">
+                <span>{source ?? "Unknown source"}</span>
+                {ref.sourceUrl && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <a
+                      href={ref.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-0.5 text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      {ref.sourceDomain ?? "Visit source"}
+                      <ArrowUpRight className="size-3.5" />
+                      <span className="sr-only">(opens in a new tab)</span>
+                    </a>
+                  </>
+                )}
+              </p>
+              {ref.description && <p className="text-meta leading-relaxed text-foreground">{ref.description}</p>}
+            </header>
             <ReferenceActions reference={ref} />
+            <DetailsDisclosure>
+              <ReferenceMetadata reference={ref} />
+            </DetailsDisclosure>
           </div>
-
-          <dl className="divide-y border-y">
-            <MetaRow label="Industry">
-              <TermLinks terms={[...(ref.industry ? [ref.industry] : []), ...ref.additionalIndustries]} filterKey="industry" />
-            </MetaRow>
-            <MetaRow label="Page type">{ref.pageType ? <TermLinks terms={[ref.pageType]} filterKey="pageType" /> : <span className="text-subtle-foreground">—</span>}</MetaRow>
-            <MetaRow label="Visual style">
-              <TermLinks terms={ref.visualStyles} filterKey="visualStyle" />
-            </MetaRow>
-            <MetaRow label="Layout">
-              <TermLinks terms={ref.layouts} filterKey="layout" />
-            </MetaRow>
-            <MetaRow label="Components">
-              <TermLinks terms={ref.components} filterKey="component" />
-            </MetaRow>
-            <MetaRow label="Interaction">
-              {ref.interactions.length ? (
-                <ul className="flex flex-wrap gap-1.5">
-                  {ref.interactions.map((i) => (
-                    <li key={i.slug}>
-                      <Link
-                        href={`/?interaction=${i.slug}`}
-                        className="inline-flex h-6 items-center gap-1 rounded-full border bg-background px-2.5 text-meta hover:bg-accent"
-                        title={i.verified ? "Verified: observed live or documented" : "Not verified"}
-                      >
-                        {i.verified && <ShieldCheck className="size-3 text-success" />}
-                        {i.name}
-                        {!i.verified && <span className="text-subtle-foreground">· unverified</span>}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="text-subtle-foreground">—</span>
-              )}
-            </MetaRow>
-            <MetaRow label="Tags">
-              <TermLinks terms={ref.tags} filterKey="tag" />
-            </MetaRow>
-            <MetaRow label="Captured">
-              {LABELS.screenshotType[ref.screenshotType]} · {LABELS.viewport[ref.capturedViewport]} · {LABELS.capturedTheme[ref.capturedTheme]} theme
-            </MetaRow>
-            <MetaRow label="Dark mode">Source supports dark mode: {LABELS.darkMode[ref.supportsDarkMode]}</MetaRow>
-            {ref.collections.length > 0 && (
-              <MetaRow label="Collections">
-                <ul className="flex flex-wrap gap-x-3 gap-y-1">
-                  {ref.collections.map((c) => (
-                    <li key={c.id}>
-                      <Link href={`/collections/${c.id}`} className="underline-offset-4 hover:underline">
-                        {c.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </MetaRow>
-            )}
-            <MetaRow label="Added">{formatDate(ref.createdAt)}</MetaRow>
-            <MetaRow label="Updated">{formatDate(ref.updatedAt)}</MetaRow>
-            {ref.capturedAt && <MetaRow label="Date captured">{ref.capturedAt}</MetaRow>}
-            <MetaRow label="Attribution">{ref.attribution ?? (ref.siteName ? `Design by ${ref.siteName}` : "—")}</MetaRow>
-            {ref.licenseNotes && <MetaRow label="Usage notes">{ref.licenseNotes}</MetaRow>}
-          </dl>
-
-          {(a?.observations || curatorNotes || a?.aiSuggestions) && (
-            <section className="flex flex-col gap-5" aria-labelledby="analysis-title">
-              <h2 id="analysis-title" className="text-title font-medium">
-                Design analysis
-              </h2>
-              <Note label="Observed" tone="observed">
-                {a?.observations ?? null}
-              </Note>
-              {curatorNotes && (
-                <div className="flex flex-col gap-4 border-l-2 pl-4">
-                  <p className="text-micro text-subtle-foreground">Curator notes — personal interpretation</p>
-                  <Note label="Why it’s interesting">{a?.interesting ?? null}</Note>
-                  <Note label="Typography">{a?.typographyNotes ?? null}</Note>
-                  <Note label="Color">{a?.colorNotes ?? null}</Note>
-                  <Note label="Layout">{a?.layoutNotes ?? null}</Note>
-                  <Note label="Interaction">{a?.interactionNotes ?? null}</Note>
-                  <Note label="UX strengths">{a?.uxStrengths ?? null}</Note>
-                  <Note label="Limitations">{a?.limitations ?? null}</Note>
-                  <Note label="How I might use this">{a?.usageIdeas ?? null}</Note>
-                </div>
-              )}
-              {a?.aiSuggestions && (
-                <div className="rounded-lg bg-warning/8 p-3">
-                  <Note label={`AI suggestions · ${a.aiSuggestionsReviewed ? "reviewed" : "unreviewed"}`} tone="ai">
-                    {a.aiSuggestions}
-                  </Note>
-                </div>
-              )}
-            </section>
-          )}
         </aside>
+
+        <section className="min-w-0 lg:col-start-1 lg:row-start-1" aria-label={`${ref.title} — screenshots`}>
+          <ReferenceGallery images={ref.images} title={ref.title} />
+        </section>
       </div>
 
-      <section className="mt-16" aria-labelledby="related-title">
-        <div className="mb-5 flex items-baseline justify-between gap-4">
+      <section className="mt-20" aria-labelledby="related-title">
+        <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 id="related-title" className="text-heading font-medium">
             Related references
           </h2>
@@ -229,6 +280,6 @@ export default async function ReferencePage({ params }: PageProps<"/references/[
           </ul>
         )}
       </section>
-    </PageContainer>
+    </div>
   );
 }
