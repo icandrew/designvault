@@ -10,7 +10,7 @@ import { authSettings, SESSION_COOKIE, verifySessionToken } from "@/server/auth"
  * - With a password: pages redirect to /login and app endpoints return 401
  *   unless the signed session cookie is valid. Agent REST endpoints may
  *   instead present the API key (checked by the route itself).
- * - With `DESIGN_VAULT_PUBLIC_VIEW=true` as well: signed-out visitors may
+ * - Public view (default with a password; off with `DESIGN_VAULT_PUBLIC_VIEW=false`): signed-out visitors may
  *   *view* the gallery, explore, collections and reference pages (GET only).
  *   Everything that changes data, settings (incl. the API key) and the
  *   add/edit pages still require signing in.

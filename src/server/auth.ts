@@ -18,7 +18,10 @@ export interface AuthSettings {
   password: string | null;
   sessionSecret: string | null;
   onVercel: boolean;
-  /** Signed-out visitors may view (never change) the vault. Requires a password. */
+  /**
+   * Signed-out visitors may view (never change) the vault. On by default once a
+   * password is set; turn off with DESIGN_VAULT_PUBLIC_VIEW=false for a private vault.
+   */
   publicView?: boolean;
 }
 
@@ -28,7 +31,7 @@ export function authSettings(): AuthSettings {
     password,
     sessionSecret: process.env.DESIGN_VAULT_SESSION_SECRET?.trim() || null,
     onVercel: Boolean(process.env.VERCEL),
-    publicView: Boolean(password) && /^(1|true|yes|on)$/i.test(process.env.DESIGN_VAULT_PUBLIC_VIEW?.trim() ?? ""),
+    publicView: Boolean(password) && !/^(0|false|no|off|private)$/i.test(process.env.DESIGN_VAULT_PUBLIC_VIEW?.trim() ?? ""),
   };
 }
 

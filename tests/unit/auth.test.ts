@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkPassword, createSessionToken, safeNextPath, SESSION_MAX_AGE_S, verifySessionToken, type AuthSettings } from "@/server/auth";
+import { authSettings, checkPassword, createSessionToken, safeNextPath, SESSION_MAX_AGE_S, verifySessionToken, type AuthSettings } from "@/server/auth";
 
 const settings: AuthSettings = { password: "correct horse battery staple", sessionSecret: null, onVercel: true };
 
@@ -38,5 +38,25 @@ describe("hosted login", () => {
     expect(safeNextPath("//evil.example")).toBe("/");
     expect(safeNextPath("/\\evil.example")).toBe("/");
     expect(safeNextPath(null)).toBe("/");
+  });
+
+  it("lets signed-out visitors browse by default once a password is set; false makes the vault private", () => {
+    const saved = { p: process.env.DESIGN_VAULT_PASSWORD, v: process.env.DESIGN_VAULT_PUBLIC_VIEW };
+    try {
+      process.env.DESIGN_VAULT_PASSWORD = "secret-pass";
+      delete process.env.DESIGN_VAULT_PUBLIC_VIEW;
+      expect(authSettings().publicView).toBe(true);
+      process.env.DESIGN_VAULT_PUBLIC_VIEW = "false";
+      expect(authSettings().publicView).toBe(false);
+      process.env.DESIGN_VAULT_PUBLIC_VIEW = "true";
+      expect(authSettings().publicView).toBe(true);
+      delete process.env.DESIGN_VAULT_PASSWORD;
+      expect(authSettings().publicView).toBe(false);
+    } finally {
+      if (saved.p === undefined) delete process.env.DESIGN_VAULT_PASSWORD;
+      else process.env.DESIGN_VAULT_PASSWORD = saved.p;
+      if (saved.v === undefined) delete process.env.DESIGN_VAULT_PUBLIC_VIEW;
+      else process.env.DESIGN_VAULT_PUBLIC_VIEW = saved.v;
+    }
   });
 });

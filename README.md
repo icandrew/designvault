@@ -146,7 +146,7 @@ Optional. Copy `.env.example` to `.env.local` and edit. Environment variables ar
 | `DESIGN_VAULT_MAX_VIDEO_MB` | `200` | MP4 video size limit |
 | `DESIGN_VAULT_CAPTURE_TIMEOUT_MS` | `30000` | URL capture page-load timeout |
 | `DESIGN_VAULT_PASSWORD` | — | Login password (required on Vercel; optional locally) |
-| `DESIGN_VAULT_PUBLIC_VIEW` | `false` | `true` lets signed-out visitors browse (view-only) |
+| `DESIGN_VAULT_PUBLIC_VIEW` | `true` | Signed-out visitors can browse (view-only); `false` makes every page require the password |
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | — | Hosted database (online vault) |
 | `BLOB_READ_WRITE_TOKEN` | — | Hosted file storage (online vault) |
 

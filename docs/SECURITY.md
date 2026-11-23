@@ -57,7 +57,7 @@ When deployed online (see [DEPLOY-VERCEL.md](DEPLOY-VERCEL.md)), these protectio
   - The MCP server's hosted connection rejects anything but reads, and a read-only Turso token adds a second layer.
   - Cascading deletes are done explicitly in code, because hosted libSQL connections don't enforce foreign keys.
 - **No URL capture** on hosted deployments, so there's no server-side browser to abuse.
-- **Optional public view** (`DESIGN_VAULT_PUBLIC_VIEW=true`): signed-out visitors may only make GET requests to an allowlist of viewing routes (gallery, explore, collections, recent, favorites, reference pages, images, and the gallery's read-only list endpoint). Everything else, including every write, the add and edit pages, Settings, export and the agent API, needs the session cookie or API key. The "visitor" flag passed to pages is set by the proxy and stripped from incoming requests, so it can't be forged. Hidden buttons are only cosmetic; the proxy is the enforcement.
+- **Public view, on by default** (turn off with `DESIGN_VAULT_PUBLIC_VIEW=false`): signed-out visitors may only make GET requests to an allowlist of viewing routes (gallery, explore, collections, recent, favorites, reference pages, images, and the gallery's read-only list endpoint). Everything else, including every write, the add and edit pages, Settings, export and the agent API, needs the session cookie or API key. The "visitor" flag passed to pages is set by the proxy and stripped from incoming requests, so it can't be forged. Hidden buttons are only cosmetic; the proxy is the enforcement.
 
 ## Known limitations
 
